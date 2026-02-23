@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+ENV/
+env/
+
+# Data files (trop volumineux pour Git)
+mspr_obrail/data/raw/
+mspr_obrail/data/data/
+mspr_obrail/data/processed/
+mspr_obrail/data/logs/
+
+# Fichiers volumineux
+*.zip
+*.csv
+*.txt
+*.gz
+*.tar
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+logs/
