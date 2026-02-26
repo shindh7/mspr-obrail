@@ -1,0 +1,295 @@
+"""
+ObRail Europe – FastAPI REST API
+Data mart access layer (PostgreSQL star schema)
+"""
+
+from __future__ import annotations
+
+import os
+from pathlib import Path
+from typing import Optional
+
+import psycopg2
+from fastapi import Depends, FastAPI, HTTPException, Query
+from fastapi.responses import FileResponse
+from pydantic import BaseModel
+
+# ── Configuration ─────────────────────────────────────────────────────────────
+STATIC_DIR = Path(__file__).parent  # index.html lives alongside main.py
+
+# ── Database ──────────────────────────────────────────────────────────────────
+def _get_conn():
+    return psycopg2.connect(
+        host=os.environ.get("PGHOST", "localhost"),
+        port=os.environ.get("PGPORT", "5432"),
+        dbname=os.environ.get("PGDATABASE", "obrail_europe"),
+        user=os.environ.get("PGUSER", "shindh"),
+        password=os.environ.get("PGPASSWORD", ""),
+    )
+
+
+def get_db():
+    conn = _get_conn()
+    try:
+        yield conn
+    finally:
+        conn.close()
+
+
+# ── Application ───────────────────────────────────────────────────────────────
+app = FastAPI(
+    title="ObRail Europe API",
+    version="2.0.0",
+    description="REST API exposing the ObRail Europe railway data mart.",
+)
+
+
+# ── Frontend ──────────────────────────────────────────────────────────────────
+@app.get("/", response_class=FileResponse, include_in_schema=False)
+def ui_home():
+    """Serve the analytics dashboard (index.html)."""
+    path = STATIC_DIR / "index.html"
+    if not path.exists():
+        raise HTTPException(
+            status_code=404,
+            detail=f"index.html not found — expected at {path.resolve()}"
+        )
+    return FileResponse(path, media_type="text/html")
+
+
+# ── Health ────────────────────────────────────────────────────────────────────
+@app.get("/health", tags=["meta"])
+def health():
+    return {"status": "ok", "version": app.version}
+
+
+# ── Pydantic models ───────────────────────────────────────────────────────────
+class TripSegment(BaseModel):
+    fact_trip_key: int
+    country: Optional[str]
+    operator: Optional[str]
+    trip_id: Optional[str]
+    route_id: Optional[str]
+    departure_station: Optional[str]
+    arrival_station: Optional[str]
+    departure_time: Optional[str]
+    arrival_time: Optional[str]
+    departure_date: Optional[str]
+    arrival_date: Optional[str]
+    departure_lat: Optional[float]
+    departure_lon: Optional[float]
+    arrival_lat: Optional[float]
+    arrival_lon: Optional[float]
+    is_night: Optional[bool]
+    is_cross_border: Optional[bool]
+
+
+# ── /trips ────────────────────────────────────────────────────────────────────
+@app.get("/trips", response_model=list[TripSegment], tags=["trips"])
+def get_trips(
+    is_night: Optional[bool] = Query(default=None),
+    country_code: Optional[str] = Query(default=None, min_length=2, max_length=64),
+    operator_id: Optional[str] = Query(default=None, min_length=1, max_length=64),
+    departure_station: Optional[str] = Query(default=None, min_length=2, max_length=128),
+    arrival_station: Optional[str] = Query(default=None, min_length=2, max_length=128),
+    limit: int = Query(default=100, ge=1, le=10000),
+    offset: int = Query(default=0, ge=0),
+    db=Depends(get_db),
+):
+    """Return filtered trip segments from the fact table."""
+    filters: list[str] = []
+    params: list = []
+
+    if is_night is not None:
+        filters.append("f.is_night = %s");          params.append(is_night)
+    if country_code:
+        filters.append("c.country_code = %s");       params.append(country_code.upper())
+    if operator_id:
+        filters.append("o.operator_id = %s");        params.append(operator_id)
+    if departure_station:
+        filters.append("ds.station_name ILIKE %s");  params.append(f"%{departure_station}%")
+    if arrival_station:
+        filters.append("a.station_name ILIKE %s");   params.append(f"%{arrival_station}%")
+
+    where = f"WHERE {' AND '.join(filters)}" if filters else ""
+
+    sql = f"""
+        SELECT
+            f.fact_trip_key,
+            c.country_code,
+            o.operator_id,
+            f.trip_business_id,
+            r.route_id,
+            ds.station_name     AS departure_station,
+            a.station_name      AS arrival_station,
+            ds.station_lat      AS departure_lat,
+            ds.station_lon      AS departure_lon,
+            a.station_lat       AS arrival_lat,
+            a.station_lon       AS arrival_lon,
+            dt.time_value::text AS departure_time,
+            at.time_value::text AS arrival_time,
+            d.date_value::text  AS departure_date,
+            d.date_value::text  AS arrival_date,
+            f.is_night,
+            f.is_cross_border
+        FROM obrail.fact_trip_segment f
+        LEFT JOIN obrail.dim_country  c  ON c.country_key  = f.country_key
+        LEFT JOIN obrail.dim_operator o  ON o.operator_key = f.operator_key
+        LEFT JOIN obrail.dim_route    r  ON r.route_key    = f.route_key
+        LEFT JOIN obrail.dim_station  ds ON ds.station_key = f.departure_station_key
+        LEFT JOIN obrail.dim_station  a  ON a.station_key  = f.arrival_station_key
+        LEFT JOIN obrail.dim_time     dt ON dt.time_key    = f.departure_time_key
+        LEFT JOIN obrail.dim_time     at ON at.time_key    = f.arrival_time_key
+        LEFT JOIN obrail.dim_date     d  ON d.date_key     = f.date_key
+        {where}
+        ORDER BY f.fact_trip_key
+        LIMIT %s OFFSET %s;
+    """
+    params.extend([limit, offset])
+
+    with db.cursor() as cur:
+        cur.execute(sql, params)
+        rows = cur.fetchall()
+
+    return [
+        TripSegment(
+            fact_trip_key=r[0],    country=r[1],          operator=r[2],
+            trip_id=r[3],          route_id=r[4],
+            departure_station=r[5], arrival_station=r[6],
+            departure_lat=r[7],    departure_lon=r[8],
+            arrival_lat=r[9],      arrival_lon=r[10],
+            departure_time=r[11],  arrival_time=r[12],
+            departure_date=r[13],  arrival_date=r[14],
+            is_night=r[15],        is_cross_border=r[16],
+        )
+        for r in rows
+    ]
+
+
+# ── /trip_stops ───────────────────────────────────────────────────────────────
+@app.get("/trip_stops", tags=["trips"])
+def get_trip_stops(
+    trip_id: str = Query(min_length=1, max_length=128),
+    operator_id: str = Query(min_length=1, max_length=64),
+    country_code: str = Query(min_length=2, max_length=64),
+    db=Depends(get_db),
+):
+    """Return ordered intermediate stops for a given trip."""
+    sql = """
+        SELECT
+            stop_sequence, stop_id, stop_name,
+            stop_lat, stop_lon,
+            arrival_time::text, departure_time::text, date_value::text
+        FROM obrail.trip_stop
+        WHERE trip_id = %s AND operator_id = %s AND country_code = %s
+        ORDER BY stop_sequence ASC;
+    """
+    with db.cursor() as cur:
+        cur.execute(sql, (trip_id, operator_id, country_code))
+        rows = cur.fetchall()
+
+    return [
+        {
+            "stop_sequence":  r[0], "stop_id":       r[1],
+            "stop_name":      r[2], "stop_lat":       r[3],
+            "stop_lon":       r[4], "arrival_time":   r[5],
+            "departure_time": r[6], "date_value":     r[7],
+        }
+        for r in rows
+    ]
+
+
+# ── /countries ────────────────────────────────────────────────────────────────
+@app.get("/countries", tags=["referential"])
+def list_countries(db=Depends(get_db)):
+    """List countries that have at least one trip in the data mart."""
+    sql = """
+        SELECT DISTINCT c.country_code, c.country_name_fr, c.country_name_en
+        FROM obrail.dim_country c
+        INNER JOIN obrail.fact_trip_segment f ON f.country_key = c.country_key
+        ORDER BY c.country_name_en;
+    """
+    with db.cursor() as cur:
+        cur.execute(sql)
+        rows = cur.fetchall()
+    return [{"country_code": r[0], "name_fr": r[1], "name_en": r[2]} for r in rows]
+
+
+# ── /operators ────────────────────────────────────────────────────────────────
+@app.get("/operators", tags=["referential"])
+def list_operators(db=Depends(get_db)):
+    """List all rail operators registered in the data mart."""
+    sql = """
+        SELECT operator_id, operator_name, operator_country, is_night_operator
+        FROM obrail.dim_operator
+        ORDER BY operator_name;
+    """
+    with db.cursor() as cur:
+        cur.execute(sql)
+        rows = cur.fetchall()
+    return [
+        {
+            "operator_id":       r[0], "operator_name":     r[1],
+            "operator_country":  r[2], "is_night_operator": r[3],
+        }
+        for r in rows
+    ]
+
+
+# ── /coverage ─────────────────────────────────────────────────────────────────
+@app.get("/coverage", tags=["stats"])
+def get_coverage(db=Depends(get_db)):
+    """Trip count per EU / EFTA / candidate country."""
+    sql = """
+        SELECT
+            c.country_code, c.iso3_code,
+            c.country_name_fr, c.country_name_en,
+            COALESCE(COUNT(f.fact_trip_key), 0) AS trips
+        FROM obrail.dim_country c
+        LEFT JOIN obrail.fact_trip_segment f ON f.country_key = c.country_key
+        WHERE (c.eu_member = 'T' OR c.efta_member = 'T' OR c.candidate_member = 'T')
+        GROUP BY c.country_code, c.iso3_code, c.country_name_fr, c.country_name_en
+        ORDER BY trips DESC;
+    """
+    with db.cursor() as cur:
+        cur.execute(sql)
+        rows = cur.fetchall()
+    return [
+        {
+            "country_code": r[0], "iso3_code": r[1],
+            "name_fr":      r[2], "name_en":   r[3],
+            "trips":        r[4],
+        }
+        for r in rows
+    ]
+
+
+# ── /stats/coverage ───────────────────────────────────────────────────────────
+@app.get("/stats/coverage", tags=["stats"])
+def coverage_stats(db=Depends(get_db)):
+    """Global KPIs: total trips, night trains, cross-border ratio."""
+    sql = """
+        SELECT
+            COUNT(*)                                           AS total_trips,
+            SUM(CASE WHEN is_night        THEN 1 ELSE 0 END)  AS night_trips,
+            SUM(CASE WHEN is_cross_border THEN 1 ELSE 0 END)  AS cross_border_trips
+        FROM obrail.fact_trip_segment;
+    """
+    with db.cursor() as cur:
+        cur.execute(sql)
+        row = cur.fetchone()
+
+    if not row:
+        raise HTTPException(status_code=404, detail="No data found in fact table.")
+
+    total = row[0] or 0
+    night = row[1] or 0
+    cross = row[2] or 0
+
+    return {
+        "total_trips":        total,
+        "night_trips":        night,
+        "night_ratio":        round(night / total, 4) if total else 0,
+        "cross_border_trips": cross,
+        "cross_border_ratio": round(cross / total, 4) if total else 0,
+    }
