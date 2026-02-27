@@ -1,0 +1,1281 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>ObRail Europe – Analytics</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+/* ── Reset ───────────────────────────────────────────────────────── */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+
+/* ── Tokens ──────────────────────────────────────────────────────── */
+:root{
+  /* Navy palette */
+  --navy-950:#080c18;
+  --navy-900:#0d1220;
+  --navy-800:#111827;
+  --navy-700:#1a2338;
+  --navy-600:#243050;
+  --navy-500:#2e3d64;
+  --border:#1f2d4a;
+  --border-light:#2a3a5c;
+
+  /* Warm accents */
+  --gold:#c8952a;
+  --gold-light:#e6b04a;
+  --gold-dim:#3d2a09;
+  --amber:#d97b2a;
+  --amber-dim:#3a1f07;
+
+  /* Semantic */
+  --green:#2db87a;
+  --green-dim:#0a2e1c;
+  --red:#d95555;
+  --red-dim:#2e0c0c;
+  --blue:#4a80d4;
+  --blue-dim:#0e1e3a;
+  --purple:#8b6fd4;
+  --purple-dim:#1a1038;
+
+  /* Text */
+  --text:#dce4f0;
+  --text-secondary:#8b9ab8;
+  --text-muted:#4a5872;
+
+  /* Layout */
+  --sidebar:224px;
+  --header:50px;
+  --r:6px;
+}
+
+html{font-size:13px}
+body{
+  font-family:'Inter',sans-serif;
+  background:var(--navy-950);
+  color:var(--text);
+  display:flex;flex-direction:column;min-height:100vh;
+  -webkit-font-smoothing:antialiased;
+}
+
+/* ── Scrollbar ───────────────────────────────────────────────────── */
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border-light);border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:var(--navy-500)}
+
+/* ── Header ──────────────────────────────────────────────────────── */
+header{
+  height:var(--header);
+  background:var(--navy-900);
+  border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 18px;
+  position:fixed;top:0;left:0;right:0;z-index:300;
+}
+.logo{display:flex;align-items:center;gap:10px}
+.logo-rail{
+  display:flex;align-items:center;gap:0;
+}
+.logo-rail-track{
+  display:flex;flex-direction:column;justify-content:space-between;
+  width:22px;height:14px;padding:2px 0;
+}
+.logo-rail-track span{
+  display:block;height:1.5px;background:var(--gold);
+  border-radius:1px;
+}
+.logo-rail-track span:nth-child(2){
+  width:70%;background:var(--gold-light);opacity:.6;
+}
+.logo-wordmark{
+  font-size:13px;font-weight:700;letter-spacing:.04em;
+  color:var(--text);margin-left:8px;
+}
+.logo-wordmark em{
+  color:var(--gold);font-style:normal;
+}
+.logo-region{
+  font-size:10px;font-weight:400;color:var(--text-muted);
+  margin-left:6px;padding-left:6px;
+  border-left:1px solid var(--border-light);
+  letter-spacing:.06em;text-transform:uppercase;
+}
+.header-right{display:flex;align-items:center;gap:12px}
+.hdr-tag{
+  font-size:10px;font-weight:500;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--text-muted);background:var(--navy-700);
+  border:1px solid var(--border);border-radius:3px;
+  padding:3px 8px;
+}
+.hdr-version{
+  font-family:'JetBrains Mono',monospace;
+  font-size:10px;color:var(--text-muted);
+}
+
+/* ── Shell ───────────────────────────────────────────────────────── */
+.shell{display:flex;margin-top:var(--header);min-height:calc(100vh - var(--header))}
+
+/* ── Sidebar ─────────────────────────────────────────────────────── */
+aside{
+  width:var(--sidebar);
+  background:var(--navy-900);
+  border-right:1px solid var(--border);
+  padding:14px 0 20px;
+  position:fixed;top:var(--header);bottom:0;
+  overflow-y:auto;display:flex;flex-direction:column;
+}
+.nav-section{
+  padding:12px 14px 4px;
+  font-size:9.5px;font-weight:700;
+  letter-spacing:.1em;text-transform:uppercase;
+  color:var(--text-muted);
+}
+.nav-item{
+  display:flex;align-items:center;gap:9px;
+  padding:7px 14px;cursor:pointer;
+  color:var(--text-secondary);font-size:12.5px;font-weight:500;
+  border-left:2px solid transparent;
+  transition:background .12s,color .12s,border-color .12s;
+  user-select:none;position:relative;
+}
+.nav-item:hover{background:var(--navy-700);color:var(--text)}
+.nav-item.active{
+  background:linear-gradient(90deg,var(--gold-dim),transparent);
+  color:var(--gold-light);
+  border-left-color:var(--gold);
+}
+.nav-icon{width:15px;height:15px;flex-shrink:0;opacity:.65}
+.nav-item.active .nav-icon,.nav-item:hover .nav-icon{opacity:1}
+.nav-sep{height:1px;background:var(--border);margin:6px 0}
+.nav-footer{
+  margin-top:auto;padding:12px 14px;
+  font-size:10px;color:var(--text-muted);line-height:1.7;
+  border-top:1px solid var(--border);
+}
+.nav-footer strong{color:var(--text-secondary);display:block;margin-bottom:2px}
+
+/* ── Main ────────────────────────────────────────────────────────── */
+main{margin-left:var(--sidebar);flex:1;padding:20px 22px;min-width:0}
+
+/* ── Page header ─────────────────────────────────────────────────── */
+.pg-header{
+  display:flex;align-items:flex-start;justify-content:space-between;
+  margin-bottom:18px;flex-wrap:wrap;gap:8px;
+}
+.pg-header-left{}
+.pg-crumb{font-size:10.5px;color:var(--text-muted);margin-bottom:4px;letter-spacing:.03em}
+.pg-crumb span{color:var(--text-secondary)}
+.pg-title{font-size:17px;font-weight:700;letter-spacing:-.02em;color:var(--text);margin-bottom:2px}
+.pg-sub{font-size:11.5px;color:var(--text-secondary)}
+
+/* ── KPI strip ───────────────────────────────────────────────────── */
+.kpi-strip{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(155px,1fr));
+  gap:1px;
+  background:var(--border);
+  border:1px solid var(--border);
+  border-radius:var(--r);
+  overflow:hidden;
+  margin-bottom:16px;
+}
+.kpi-cell{
+  background:var(--navy-800);
+  padding:14px 16px;
+  position:relative;
+  overflow:hidden;
+}
+.kpi-cell::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:2px;
+}
+.kpi-cell.c-gold::before{background:var(--gold)}
+.kpi-cell.c-green::before{background:var(--green)}
+.kpi-cell.c-amber::before{background:var(--amber)}
+.kpi-cell.c-blue::before{background:var(--blue)}
+.kpi-cell.c-purple::before{background:var(--purple)}
+.kpi-lbl{
+  font-size:9.5px;font-weight:700;text-transform:uppercase;
+  letter-spacing:.09em;color:var(--text-muted);margin-bottom:7px;
+}
+.kpi-val{
+  font-size:22px;font-weight:700;letter-spacing:-.03em;
+  font-family:'JetBrains Mono',monospace;line-height:1;
+}
+.kpi-meta{font-size:10.5px;color:var(--text-muted);margin-top:5px}
+.kpi-delta{
+  font-size:10px;font-weight:600;margin-top:4px;
+  display:inline-flex;align-items:center;gap:3px;
+}
+.delta-up{color:var(--green)}
+.delta-neutral{color:var(--text-muted)}
+
+/* ── Card ────────────────────────────────────────────────────────── */
+.card{
+  background:var(--navy-800);border:1px solid var(--border);
+  border-radius:var(--r);margin-bottom:14px;overflow:hidden;
+}
+.card-head{
+  padding:10px 14px;
+  border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;
+  gap:10px;flex-wrap:wrap;
+  background:var(--navy-900);
+}
+.card-title{
+  font-size:11.5px;font-weight:600;color:var(--text);
+  display:flex;align-items:center;gap:7px;
+}
+.card-title-dot{
+  width:5px;height:5px;border-radius:50%;flex-shrink:0;
+}
+.card-body{padding:14px}
+.card-flush{padding:0}
+
+/* ── Inline metrics ──────────────────────────────────────────────── */
+.metric-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:14px}
+.metric-box{
+  background:var(--navy-700);border:1px solid var(--border);
+  border-radius:var(--r);padding:12px 14px;
+}
+.metric-lbl{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);margin-bottom:5px}
+.metric-val{font-size:18px;font-weight:700;font-family:'JetBrains Mono',monospace;letter-spacing:-.02em}
+.metric-sub{font-size:10.5px;color:var(--text-muted);margin-top:4px}
+
+/* ── Two column ──────────────────────────────────────────────────── */
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:700px){.two-col{grid-template-columns:1fr}}
+
+/* ── Controls ────────────────────────────────────────────────────── */
+.controls{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end}
+.ctrl{display:flex;flex-direction:column;gap:3px}
+.ctrl-lbl{
+  font-size:9.5px;font-weight:700;text-transform:uppercase;
+  letter-spacing:.07em;color:var(--text-muted);
+}
+select,input[type=text],input[type=number]{
+  background:var(--navy-700);border:1px solid var(--border);
+  color:var(--text);padding:6px 9px;border-radius:var(--r);
+  font-size:12px;font-family:'Inter',sans-serif;
+  outline:none;transition:border-color .12s;
+}
+select:focus,input:focus{border-color:var(--gold);outline:none}
+select{
+  cursor:pointer;padding-right:24px;appearance:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5' viewBox='0 0 8 5'%3E%3Cpath fill='%234a5872' d='M4 5 0 0h8z'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 8px center;
+}
+.btn{
+  display:inline-flex;align-items:center;gap:5px;
+  padding:6px 14px;border:0;border-radius:var(--r);cursor:pointer;
+  font-size:12px;font-family:'Inter',sans-serif;font-weight:600;
+  transition:opacity .12s,background .12s;white-space:nowrap;
+}
+.btn:hover{opacity:.84}
+.btn-gold{background:var(--gold);color:#0d0e10}
+.btn-ghost{
+  background:var(--navy-700);color:var(--text-secondary);
+  border:1px solid var(--border);
+}
+.btn-ghost:hover{color:var(--text);border-color:var(--border-light)}
+
+/* ── Selector bar ────────────────────────────────────────────────── */
+.sel-bar{
+  background:var(--navy-900);border:1px solid var(--border);
+  border-radius:var(--r);padding:10px 14px;margin-bottom:14px;
+  display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+}
+
+/* ── Table ───────────────────────────────────────────────────────── */
+.tbl-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:11.5px}
+thead tr{background:var(--navy-900)}
+th{
+  padding:8px 11px;text-align:left;
+  font-size:9.5px;font-weight:700;text-transform:uppercase;
+  letter-spacing:.07em;color:var(--text-muted);
+  white-space:nowrap;border-bottom:1px solid var(--border);
+}
+td{
+  padding:8px 11px;border-bottom:1px solid var(--border);
+  color:var(--text-secondary);vertical-align:middle;
+}
+tbody tr:last-child td{border-bottom:0}
+tbody tr:hover td{background:var(--navy-700);color:var(--text)}
+td.mono{font-family:'JetBrains Mono',monospace;font-size:11px}
+td.strong{font-weight:600;color:var(--text)}
+
+/* ── Badge ───────────────────────────────────────────────────────── */
+.badge{
+  display:inline-block;padding:1px 6px;border-radius:3px;
+  font-size:9.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;
+  font-family:'JetBrains Mono',monospace;
+}
+.b-gold  {background:var(--gold-dim);color:var(--gold-light);border:1px solid var(--gold-dim)}
+.b-green {background:var(--green-dim);color:var(--green)}
+.b-red   {background:var(--red-dim);color:var(--red)}
+.b-blue  {background:var(--blue-dim);color:var(--blue)}
+.b-purple{background:var(--purple-dim);color:var(--purple)}
+.b-amber {background:var(--amber-dim);color:var(--amber)}
+
+/* ── Bar ─────────────────────────────────────────────────────────── */
+.bars{display:flex;flex-direction:column;gap:7px}
+.bar-row{display:grid;grid-template-columns:160px 1fr 76px;align-items:center;gap:10px}
+.bar-lbl{font-size:11.5px;color:var(--text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bar-bg{background:var(--navy-700);border-radius:2px;height:14px;overflow:hidden}
+.bar-fill{height:100%;border-radius:2px;transition:width .5s ease}
+.bar-val{font-size:11px;font-weight:600;font-family:'JetBrains Mono',monospace;color:var(--text);text-align:right}
+
+/* ── Saving box ──────────────────────────────────────────────────── */
+.insight-box{
+  background:var(--navy-700);border:1px solid var(--border);
+  border-left:3px solid var(--gold);
+  border-radius:var(--r);padding:10px 14px;margin-top:12px;
+  font-size:11.5px;color:var(--text-secondary);line-height:1.7;
+}
+.insight-box strong{color:var(--gold-light)}
+
+/* ── Source note ─────────────────────────────────────────────────── */
+.src{font-size:10px;color:var(--text-muted);margin-top:10px;line-height:1.6;border-top:1px solid var(--border);padding-top:8px}
+
+/* ── Map ─────────────────────────────────────────────────────────── */
+#map{height:360px}
+.leaflet-container{background:var(--navy-900) !important}
+
+/* ── Stops ───────────────────────────────────────────────────────── */
+.stop-row{
+  display:flex;align-items:baseline;gap:10px;padding:6px 0;
+  border-bottom:1px solid var(--border);font-size:11.5px;
+}
+.stop-row:last-child{border:0}
+.stop-seq{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--gold);min-width:20px;font-weight:600}
+.stop-name{font-weight:500;color:var(--text)}
+.stop-meta{color:var(--text-muted);font-size:10.5px}
+
+/* ── States ──────────────────────────────────────────────────────── */
+.state{text-align:center;padding:32px 16px;font-size:12px;color:var(--text-muted)}
+.spinner{
+  display:inline-block;width:14px;height:14px;
+  border:1.5px solid var(--border-light);border-top-color:var(--gold);
+  border-radius:50%;animation:spin .6s linear infinite;
+  vertical-align:middle;margin-right:6px;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ── Divider line ────────────────────────────────────────────────── */
+.hdivider{height:1px;background:var(--border);margin:12px 0}
+</style>
+</head>
+<body>
+
+<!-- ══ HEADER ═══════════════════════════════════════════════════ -->
+<header>
+  <div class="logo">
+    <div class="logo-rail">
+      <div class="logo-rail-track">
+        <span></span><span></span><span></span>
+      </div>
+    </div>
+    <span class="logo-wordmark">Ob<em>Rail</em></span>
+    <span class="logo-region">Europe</span>
+  </div>
+  <div class="header-right">
+    <span class="hdr-tag">Railway Observatory</span>
+    <span class="hdr-version">v2.0</span>
+  </div>
+</header>
+
+<div class="shell">
+
+<!-- ══ SIDEBAR ══════════════════════════════════════════════════ -->
+<aside>
+  <div class="nav-section">Platform</div>
+
+  <div class="nav-item active" onclick="nav('overview',this)">
+    <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4">
+      <rect x="1" y="1" width="6" height="6" rx="1"/><rect x="9" y="1" width="6" height="6" rx="1"/>
+      <rect x="1" y="9" width="6" height="6" rx="1"/><rect x="9" y="9" width="6" height="6" rx="1"/>
+    </svg>
+    Overview
+  </div>
+  <div class="nav-item" onclick="nav('explorer',this)">
+    <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4">
+      <circle cx="7" cy="7" r="5"/><line x1="11" y1="11" x2="15" y2="15"/>
+    </svg>
+    Trip Explorer
+  </div>
+
+  <div class="nav-sep"></div>
+  <div class="nav-section">Analytics</div>
+
+  <div class="nav-item" onclick="nav('environmental',this)">
+    <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4">
+      <path d="M2 14c0-5 3-9 6-9s4 2 4 4c0 3-2 5-5 5"/><path d="M8 5V2"/>
+    </svg>
+    Environmental
+  </div>
+  <div class="nav-item" onclick="nav('demand',this)">
+    <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4">
+      <polyline points="1,13 5,8 9,10 15,3"/><polyline points="11,3 15,3 15,7"/>
+    </svg>
+    Demand &amp; Business
+  </div>
+  <div class="nav-item" onclick="nav('coverage',this)">
+    <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4">
+      <circle cx="8" cy="8" r="6"/><path d="M2 8h12"/><path d="M8 2a9 9 0 0 1 0 12M8 2a9 9 0 0 0 0 12"/>
+    </svg>
+    Coverage
+  </div>
+
+  <div class="nav-sep"></div>
+  <div class="nav-section">Reference</div>
+
+  <div class="nav-item" onclick="nav('operators',this)">
+    <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4">
+      <rect x="1" y="5" width="14" height="8" rx="1"/>
+      <path d="M5 5V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1"/>
+      <line x1="8" y1="8" x2="8" y2="10"/>
+    </svg>
+    Operators
+  </div>
+
+  <div class="nav-footer">
+    <strong>ObRail Europe</strong>
+    Railway data mart — EU / EFTA / Candidate states. Data sourced from GTFS feeds.
+  </div>
+</aside>
+
+<!-- ══ MAIN ════════════════════════════════════════════════════ -->
+<main>
+
+  <!-- OVERVIEW ─────────────────────────────────────────────── -->
+  <div id="pg-overview" class="page">
+    <div class="pg-header">
+      <div class="pg-header-left">
+        <div class="pg-crumb">Platform <span>/ Overview</span></div>
+        <div class="pg-title">Overview</div>
+        <div class="pg-sub">Platform summary — data mart coverage and key indicators</div>
+      </div>
+    </div>
+
+    <div class="kpi-strip" id="overviewKpis">
+      <div class="kpi-cell" style="grid-column:1/-1">
+        <div class="state"><span class="spinner"></span>Loading indicators</div>
+      </div>
+    </div>
+
+    <div class="two-col">
+      <div class="card">
+        <div class="card-head">
+          <div class="card-title">
+            <span class="card-title-dot" style="background:var(--gold)"></span>
+            Trips by Country
+          </div>
+          <select id="coverageSort" onchange="renderCoverageChart()" style="width:auto;font-size:11px">
+            <option value="trips">By volume</option>
+            <option value="alpha">Alphabetical</option>
+          </select>
+        </div>
+        <div class="card-body">
+          <div class="bars" id="coverageChart">
+            <div class="state"><span class="spinner"></span>Loading</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <div class="card-title">
+            <span class="card-title-dot" style="background:var(--blue)"></span>
+            Traffic Composition
+          </div>
+        </div>
+        <div class="card-body" id="compositionPanel">
+          <div class="state"><span class="spinner"></span>Loading</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TRIP EXPLORER ────────────────────────────────────────── -->
+  <div id="pg-explorer" class="page" style="display:none">
+    <div class="pg-header">
+      <div class="pg-header-left">
+        <div class="pg-crumb">Platform <span>/ Trip Explorer</span></div>
+        <div class="pg-title">Trip Explorer</div>
+        <div class="pg-sub">Query and inspect individual rail segments</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">
+          <span class="card-title-dot" style="background:var(--gold)"></span>
+          Query Parameters
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="controls">
+          <div class="ctrl">
+            <div class="ctrl-lbl">Country</div>
+            <select id="expCountry"><option value="">All</option></select>
+          </div>
+          <div class="ctrl">
+            <div class="ctrl-lbl">Operator ID</div>
+            <input type="text" id="expOperator" placeholder="sncf_voyageurs" style="width:140px"/>
+          </div>
+          <div class="ctrl">
+            <div class="ctrl-lbl">Departure</div>
+            <input type="text" id="expDep" placeholder="Paris" style="width:110px"/>
+          </div>
+          <div class="ctrl">
+            <div class="ctrl-lbl">Arrival</div>
+            <input type="text" id="expArr" placeholder="Lyon" style="width:110px"/>
+          </div>
+          <div class="ctrl">
+            <div class="ctrl-lbl">Service type</div>
+            <select id="expNight">
+              <option value="">All</option>
+              <option value="false">Day</option>
+              <option value="true">Night</option>
+            </select>
+          </div>
+          <div class="ctrl">
+            <div class="ctrl-lbl">CO2 columns</div>
+            <select id="expCo2Mode">
+              <option value="none">Off</option>
+              <option value="column" selected>On</option>
+            </select>
+          </div>
+          <div class="ctrl">
+            <div class="ctrl-lbl">Cabin class</div>
+            <select id="expCabin">
+              <option value="economy">Economy</option>
+              <option value="business">Business</option>
+              <option value="first">First</option>
+            </select>
+          </div>
+          <div class="ctrl">
+            <div class="ctrl-lbl">Row limit</div>
+            <input type="number" id="expLimit" value="50" style="width:68px"/>
+          </div>
+          <div class="ctrl" style="justify-content:flex-end">
+            <button class="btn btn-gold" onclick="loadTrips()">Run query</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">
+          <span class="card-title-dot" style="background:var(--blue)"></span>
+          <span id="tripCount">Results</span>
+        </div>
+      </div>
+      <div class="card-flush tbl-wrap" id="tripTable">
+        <div class="state">Define query parameters above and run.</div>
+      </div>
+    </div>
+
+    <div class="card" id="stopsCard" style="display:none">
+      <div class="card-head">
+        <div class="card-title">
+          <span class="card-title-dot" style="background:var(--amber)"></span>
+          Intermediate Stops
+        </div>
+        <button class="btn btn-ghost" onclick="$('stopsCard').style.display='none'" style="font-size:11px;padding:4px 10px">Dismiss</button>
+      </div>
+      <div class="card-body" id="stopsList"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">
+          <span class="card-title-dot" style="background:var(--green)"></span>
+          Route Map
+        </div>
+      </div>
+      <div id="map"></div>
+    </div>
+  </div>
+
+  <!-- ENVIRONMENTAL ────────────────────────────────────────── -->
+  <div id="pg-environmental" class="page" style="display:none">
+    <div class="pg-header">
+      <div class="pg-header-left">
+        <div class="pg-crumb">Analytics <span>/ Environmental</span></div>
+        <div class="pg-title">Environmental KPIs</div>
+        <div class="pg-sub">CO2 intensity across routes, operators and service types</div>
+      </div>
+    </div>
+
+    <div class="sel-bar">
+      <div class="ctrl">
+        <div class="ctrl-lbl">KPI view</div>
+        <select id="envKpiSelect" onchange="loadEnvKpi()">
+          <option value="co2_route">Average CO2 per route</option>
+          <option value="co2_km">CO2 per km by operator</option>
+          <option value="day_night">Day vs Night comparison</option>
+        </select>
+      </div>
+      <div class="ctrl">
+        <div class="ctrl-lbl">Cabin class</div>
+        <select id="envCabin" onchange="loadEnvKpi()">
+          <option value="economy">Economy</option>
+          <option value="business">Business</option>
+          <option value="first">First</option>
+        </select>
+      </div>
+      <div class="ctrl">
+        <div class="ctrl-lbl">Sample limit</div>
+        <input type="number" id="envLimit" value="20" style="width:68px" onchange="loadEnvKpi()"/>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">
+          <span class="card-title-dot" style="background:var(--green)"></span>
+          <span id="envKpiTitle">Average CO2 per route</span>
+        </div>
+      </div>
+      <div class="card-body" id="envKpiBody">
+        <div class="state"><span class="spinner"></span>Loading</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- DEMAND ───────────────────────────────────────────────── -->
+  <div id="pg-demand" class="page" style="display:none">
+    <div class="pg-header">
+      <div class="pg-header-left">
+        <div class="pg-crumb">Analytics <span>/ Demand &amp; Business</span></div>
+        <div class="pg-title">Demand &amp; Business KPIs</div>
+        <div class="pg-sub">Operator share, cross-border flows and night train distribution</div>
+      </div>
+    </div>
+
+    <div class="sel-bar">
+      <div class="ctrl">
+        <div class="ctrl-lbl">KPI view</div>
+        <select id="demandKpiSelect" onchange="loadDemandKpi()">
+          <option value="operator_share">Operator market share</option>
+          <option value="cross_border">Cross-border vs domestic</option>
+          <option value="night_share">Night train share by country</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">
+          <span class="card-title-dot" style="background:var(--amber)"></span>
+          <span id="demandTitle">Operator market share</span>
+        </div>
+      </div>
+      <div class="card-body" id="demandBody">
+        <div class="state"><span class="spinner"></span>Loading</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- COVERAGE ─────────────────────────────────────────────── -->
+  <div id="pg-coverage" class="page" style="display:none">
+    <div class="pg-header">
+      <div class="pg-header-left">
+        <div class="pg-crumb">Analytics <span>/ Coverage</span></div>
+        <div class="pg-title">Network Coverage</div>
+        <div class="pg-sub">EU, EFTA and candidate member states indexed in the data mart</div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">
+          <span class="card-title-dot" style="background:var(--purple)"></span>
+          Trips per Country
+        </div>
+      </div>
+      <div class="card-flush tbl-wrap" id="coverageFullBody">
+        <div class="state"><span class="spinner"></span>Loading</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- OPERATORS ────────────────────────────────────────────── -->
+  <div id="pg-operators" class="page" style="display:none">
+    <div class="pg-header">
+      <div class="pg-header-left">
+        <div class="pg-crumb">Reference <span>/ Operators</span></div>
+        <div class="pg-title">Operators Registry</div>
+        <div class="pg-sub">Rail operators registered in the data mart</div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">
+          <span class="card-title-dot" style="background:var(--blue)"></span>
+          Operators
+        </div>
+      </div>
+      <div class="card-flush tbl-wrap" id="operatorsTable">
+        <div class="state"><span class="spinner"></span>Loading</div>
+      </div>
+    </div>
+  </div>
+
+</main>
+</div>
+
+<script>
+// ================================================================
+//  CONFIG
+// ================================================================
+const CO2_PLANE={economy:89,business:198,first:290};
+const CO2_TRAIN=35;
+const DETOUR=1.15;
+const WARM=['#c8952a','#d97b2a','#4a80d4','#2db87a','#8b6fd4','#d95555','#3aa8c4'];
+
+// ================================================================
+//  HELPERS
+// ================================================================
+const $=id=>document.getElementById(id);
+const gv=id=>$(id).value.trim();
+
+function haversine(la1,lo1,la2,lo2){
+  const R=6371,r=x=>x*Math.PI/180,dLa=r(la2-la1),dLo=r(lo2-lo1);
+  const a=Math.sin(dLa/2)**2+Math.cos(r(la1))*Math.cos(r(la2))*Math.sin(dLo/2)**2;
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+}
+
+function fmt(n,dec=0){
+  if(n==null||n===undefined) return '–';
+  return Number(n).toLocaleString('en',{minimumFractionDigits:dec,maximumFractionDigits:dec});
+}
+
+function badge(text,cls){return`<span class="badge b-${cls}">${text}</span>`}
+
+async function api(url){
+  const r=await fetch(url);
+  if(!r.ok) throw new Error(`HTTP ${r.status}`);
+  return r.json();
+}
+
+function loading(id){$(id).innerHTML=`<div class="state"><span class="spinner"></span>Loading</div>`}
+
+// ── Animated counter ────────────────────────────────────────────
+function animateCount(el, target, duration=900, isFloat=false){
+  const start=performance.now();
+  const from=0;
+  function step(now){
+    const p=Math.min((now-start)/duration,1);
+    const ease=1-Math.pow(1-p,3);
+    const val=from+(target-from)*ease;
+    el.textContent=isFloat?fmt(val,1):fmt(Math.round(val));
+    if(p<1) requestAnimationFrame(step);
+    else el.textContent=isFloat?fmt(target,1):fmt(target);
+  }
+  requestAnimationFrame(step);
+}
+
+// ================================================================
+//  NAVIGATION
+// ================================================================
+function nav(page,el){
+  document.querySelectorAll('.page').forEach(p=>p.style.display='none');
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  $(`pg-${page}`).style.display='block';
+  el.classList.add('active');
+  if(page==='overview')      loadOverview();
+  if(page==='explorer')      initMapOnce();
+  if(page==='environmental') loadEnvKpi();
+  if(page==='demand')        loadDemandKpi();
+  if(page==='coverage')      loadCoverageFull();
+  if(page==='operators')     loadOperators();
+}
+
+// ================================================================
+//  OVERVIEW
+// ================================================================
+let _cov=[];
+
+async function loadOverview(){
+  if($('overviewKpis').dataset.loaded) return;
+  try{
+    const [stats,cov]=await Promise.all([api('/stats/coverage'),api('/coverage')]);
+    _cov=cov;
+
+    const np=stats.night_ratio?(stats.night_ratio*100).toFixed(1):'0';
+    const cp=stats.total_trips?((stats.cross_border_trips/stats.total_trips)*100).toFixed(1):'0';
+
+    $('overviewKpis').innerHTML=`
+      <div class="kpi-cell c-gold">
+        <div class="kpi-lbl">Total trips</div>
+        <div class="kpi-val" id="kv-total">0</div>
+        <div class="kpi-meta">Rail segments indexed</div>
+      </div>
+      <div class="kpi-cell c-purple">
+        <div class="kpi-lbl">Night trains</div>
+        <div class="kpi-val" id="kv-night">0</div>
+        <div class="kpi-delta delta-up" id="kv-nightpct">–</div>
+      </div>
+      <div class="kpi-cell c-amber">
+        <div class="kpi-lbl">Cross-border</div>
+        <div class="kpi-val" id="kv-cross">0</div>
+        <div class="kpi-delta delta-neutral" id="kv-crosspct">–</div>
+      </div>
+      <div class="kpi-cell c-green">
+        <div class="kpi-lbl">Countries</div>
+        <div class="kpi-val" id="kv-countries">0</div>
+        <div class="kpi-meta">EU / EFTA / Candidate</div>
+      </div>
+      <div class="kpi-cell c-blue">
+        <div class="kpi-lbl">Domestic trips</div>
+        <div class="kpi-val" id="kv-dom">0</div>
+        <div class="kpi-meta">Non cross-border segments</div>
+      </div>`;
+
+    // animate
+    animateCount($('kv-total'),   stats.total_trips||0);
+    animateCount($('kv-night'),   stats.night_trips||0);
+    animateCount($('kv-cross'),   stats.cross_border_trips||0);
+    animateCount($('kv-countries'),cov.length);
+    animateCount($('kv-dom'),     (stats.total_trips||0)-(stats.cross_border_trips||0));
+
+    setTimeout(()=>{
+      $('kv-nightpct').textContent=np+'% of total';
+      $('kv-crosspct').textContent=cp+'% of total';
+    },950);
+
+    $('overviewKpis').dataset.loaded='1';
+    renderCoverageChart();
+    renderComposition(stats);
+  }catch(e){
+    $('overviewKpis').innerHTML=`<div class="state">Failed to load: ${e.message}</div>`;
+  }
+}
+
+function renderCoverageChart(){
+  if(!_cov.length) return;
+  const sort=gv('coverageSort');
+  const sorted=[..._cov].sort((a,b)=>
+    sort==='trips'?b.trips-a.trips:(a.name_en||'').localeCompare(b.name_en||''));
+  const top=sorted.slice(0,14);
+  const max=top[0]?.trips||1;
+  $('coverageChart').innerHTML=top.map((r,i)=>`
+    <div class="bar-row">
+      <div class="bar-lbl" title="${r.name_en||r.country_code}">${r.name_en||r.country_code}</div>
+      <div class="bar-bg"><div class="bar-fill" style="width:${Math.max(1,(r.trips/max*100)).toFixed(1)}%;background:${WARM[i%WARM.length]}"></div></div>
+      <div class="bar-val">${fmt(r.trips)}</div>
+    </div>`).join('');
+}
+
+function renderComposition(stats){
+  const total=stats.total_trips||1;
+  const night=stats.night_trips||0;
+  const cross=stats.cross_border_trips||0;
+  const day=total-night;
+  const dom=total-cross;
+  const rows=[
+    {label:'Day services',    val:day,   pct:(day/total*100), color:WARM[2]},
+    {label:'Night services',  val:night, pct:(night/total*100), color:WARM[4]},
+    {label:'Domestic',        val:dom,   pct:(dom/total*100), color:WARM[3]},
+    {label:'Cross-border',    val:cross, pct:(cross/total*100), color:WARM[0]},
+  ];
+  $('compositionPanel').innerHTML=`
+    <div class="bars">${rows.map(r=>`
+      <div class="bar-row">
+        <div class="bar-lbl">${r.label}</div>
+        <div class="bar-bg"><div class="bar-fill" style="width:${Math.max(1,r.pct).toFixed(1)}%;background:${r.color}"></div></div>
+        <div class="bar-val">${fmt(r.val)}</div>
+      </div>`).join('')}
+    </div>
+    <div class="hdivider"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <div style="font-size:10.5px;color:var(--text-muted)">Night ratio<br><span style="color:var(--text);font-weight:600;font-family:'JetBrains Mono',monospace">${(night/total*100).toFixed(1)}%</span></div>
+      <div style="font-size:10.5px;color:var(--text-muted)">Cross-border ratio<br><span style="color:var(--text);font-weight:600;font-family:'JetBrains Mono',monospace">${(cross/total*100).toFixed(1)}%</span></div>
+    </div>`;
+}
+
+// ================================================================
+//  ENVIRONMENTAL
+// ================================================================
+const ENV_TITLES={
+  co2_route:'Average CO2 per route — train vs plane',
+  co2_km:'CO2 intensity per km by operator',
+  day_night:'Day vs Night — environmental comparison',
+};
+
+async function loadEnvKpi(){
+  const kpi=gv('envKpiSelect'),cabin=gv('envCabin'),lim=parseInt(gv('envLimit'))||20;
+  $('envKpiTitle').textContent=ENV_TITLES[kpi];
+  loading('envKpiBody');
+  try{
+    const trips=await api(`/trips?limit=${lim}`);
+    const valid=trips.filter(t=>t.departure_lat&&t.arrival_lat);
+    if(kpi==='co2_route')  renderCo2Route(valid,cabin);
+    else if(kpi==='co2_km')    renderCo2Km(valid,cabin);
+    else if(kpi==='day_night') renderDayNight(valid,cabin);
+  }catch(e){$('envKpiBody').innerHTML=`<div class="state">Error: ${e.message}</div>`}
+}
+
+function tripDist(t){return haversine(+t.departure_lat,+t.departure_lon,+t.arrival_lat,+t.arrival_lon)*DETOUR}
+
+function renderCo2Route(trips,cabin){
+  const rows=trips.map(t=>{
+    const d=tripDist(t),tG=Math.round(d*CO2_TRAIN),pG=Math.round(d*CO2_PLANE[cabin]);
+    return{t,d:Math.round(d),tG,pG,sv:pG-tG,pc:Math.round(((pG-tG)/pG)*100)};
+  }).sort((a,b)=>b.sv-a.sv).slice(0,15);
+  const avgT=Math.round(rows.reduce((s,r)=>s+r.tG,0)/rows.length);
+  const avgP=Math.round(rows.reduce((s,r)=>s+r.pG,0)/rows.length);
+
+  $('envKpiBody').innerHTML=`
+    <div class="metric-row">
+      <div class="metric-box">
+        <div class="metric-lbl">Avg train CO2 / route</div>
+        <div class="metric-val" style="color:var(--green)">${fmt(avgT)} g</div>
+        <div class="metric-sub">EU electric average</div>
+      </div>
+      <div class="metric-box">
+        <div class="metric-lbl">Avg plane CO2 / route</div>
+        <div class="metric-val" style="color:var(--red)">${fmt(avgP)} g</div>
+        <div class="metric-sub">Cabin: ${cabin}</div>
+      </div>
+      <div class="metric-box">
+        <div class="metric-lbl">Avg saving / route</div>
+        <div class="metric-val" style="color:var(--gold-light)">${fmt(avgP-avgT)} g</div>
+        <div class="metric-sub">${Math.round((avgP-avgT)/avgP*100)}% less vs plane</div>
+      </div>
+    </div>
+    <div class="tbl-wrap"><table>
+      <thead><tr>
+        <th>Route</th><th>Distance</th>
+        <th>Train CO2</th><th>Plane CO2 (${cabin})</th><th>Saving</th>
+      </tr></thead>
+      <tbody>${rows.map(r=>`<tr>
+        <td class="strong">${r.t.departure_station||'?'} &rarr; ${r.t.arrival_station||'?'}</td>
+        <td class="mono">${r.d} km</td>
+        <td class="mono" style="color:var(--green)">${fmt(r.tG)} g</td>
+        <td class="mono" style="color:var(--red)">${fmt(r.pG)} g</td>
+        <td>${badge('-'+fmt(r.sv)+' g ('+r.pc+'%)','green')}</td>
+      </tr>`).join('')}</tbody>
+    </table></div>
+    <div class="src">EEA / ADEME methodology. Train: ${CO2_TRAIN} g CO2/km/pax (EU electric mix). Plane: economy 89 g / business 198 g / first 290 g/km/pax — radiative forcing ×1.9 included. Distances: Haversine × ${DETOUR} detour factor.</div>`;
+}
+
+function renderCo2Km(trips,cabin){
+  const byOp={};
+  trips.forEach(t=>{const op=t.operator||'Unknown',d=tripDist(t);
+    if(!byOp[op])byOp[op]={t:0,dist:0};
+    byOp[op].t+=Math.round(d*CO2_TRAIN);byOp[op].dist+=d;});
+  const rows=Object.entries(byOp)
+    .map(([op,v])=>({op,gkm:(v.t/v.dist).toFixed(1)}))
+    .sort((a,b)=>a.gkm-b.gkm);
+  const max=Math.max(...rows.map(r=>+r.gkm));
+  $('envKpiBody').innerHTML=`
+    <div class="bars">${rows.map((r,i)=>`
+      <div class="bar-row">
+        <div class="bar-lbl">${r.op}</div>
+        <div class="bar-bg"><div class="bar-fill" style="width:${(+r.gkm/max*100).toFixed(1)}%;background:${WARM[i%WARM.length]}"></div></div>
+        <div class="bar-val">${r.gkm} g/km</div>
+      </div>`).join('')}
+    </div>
+    <div class="insight-box">Plane reference (${cabin}): <strong>${CO2_PLANE[cabin]} g/km/pax</strong>. Train average across all operators: <strong>${CO2_TRAIN} g/km/pax</strong>.</div>
+    <div class="src">EEA / ADEME. Radiative forcing ×1.9 applied to aviation figures.</div>`;
+}
+
+function renderDayNight(trips,cabin){
+  const day=trips.filter(t=>!t.is_night),night=trips.filter(t=>t.is_night);
+  function avg(arr){
+    if(!arr.length)return{tG:0,pG:0,d:0};
+    const s=arr.reduce((a,t)=>{const d=tripDist(t);return{tG:a.tG+Math.round(d*CO2_TRAIN),pG:a.pG+Math.round(d*CO2_PLANE[cabin]),d:a.d+d};},{tG:0,pG:0,d:0});
+    return{tG:Math.round(s.tG/arr.length),pG:Math.round(s.pG/arr.length),d:Math.round(s.d/arr.length)};
+  }
+  const dA=avg(day),nA=avg(night);
+  $('envKpiBody').innerHTML=`
+    <div class="two-col">
+      <div>
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);margin-bottom:8px">Day services</div>
+        <div class="metric-row" style="grid-template-columns:1fr 1fr">
+          <div class="metric-box">
+            <div class="metric-lbl">Train CO2 avg</div>
+            <div class="metric-val" style="color:var(--green)">${fmt(dA.tG)} g</div>
+            <div class="metric-sub">${fmt(dA.d)} km avg</div>
+          </div>
+          <div class="metric-box">
+            <div class="metric-lbl">Plane equiv.</div>
+            <div class="metric-val" style="color:var(--red)">${fmt(dA.pG)} g</div>
+            <div class="metric-sub">${day.length} trips</div>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);margin-bottom:8px">Night services</div>
+        <div class="metric-row" style="grid-template-columns:1fr 1fr">
+          <div class="metric-box">
+            <div class="metric-lbl">Train CO2 avg</div>
+            <div class="metric-val" style="color:var(--purple)">${fmt(nA.tG)} g</div>
+            <div class="metric-sub">${fmt(nA.d)} km avg</div>
+          </div>
+          <div class="metric-box">
+            <div class="metric-lbl">Plane equiv.</div>
+            <div class="metric-val" style="color:var(--red)">${fmt(nA.pG)} g</div>
+            <div class="metric-sub">${night.length} trips</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="insight-box">
+      Night trains replace flights on longer corridors, saving on average
+      <strong>${fmt(nA.pG-nA.tG)} g CO2 per trip</strong> versus flying (${cabin} class)
+      — a <strong>${Math.round((nA.pG-nA.tG)/nA.pG*100)}% reduction</strong> in carbon intensity.
+    </div>`;
+}
+
+// ================================================================
+//  DEMAND
+// ================================================================
+const DEMAND_TITLES={
+  operator_share:'Operator market share — indexed trip volume',
+  cross_border:'Cross-border vs domestic traffic split',
+  night_share:'Night train share by country',
+};
+
+async function loadDemandKpi(){
+  const kpi=gv('demandKpiSelect');
+  $('demandTitle').textContent=DEMAND_TITLES[kpi];
+  loading('demandBody');
+  try{
+    if(kpi==='operator_share'){
+      const[trips,ops]=await Promise.all([api('/trips?limit=5000'),api('/operators')]);
+      renderOpShare(trips,ops);
+    }else if(kpi==='cross_border'){
+      renderCrossBorder(await api('/stats/coverage'));
+    }else{
+      const[trips,cov]=await Promise.all([api('/trips?limit=5000'),api('/coverage')]);
+      renderNightShare(trips,cov);
+    }
+  }catch(e){$('demandBody').innerHTML=`<div class="state">Error: ${e.message}</div>`}
+}
+
+function renderOpShare(trips,ops){
+  const cnt={};
+  trips.forEach(t=>{const o=t.operator||'?';cnt[o]=(cnt[o]||0)+1;});
+  const total=trips.length||1;
+  const rows=Object.entries(cnt).sort((a,b)=>b[1]-a[1]).slice(0,12);
+  const max=rows[0]?.[1]||1;
+  const opMap=Object.fromEntries(ops.map(o=>[o.operator_id,o.operator_name]));
+  $('demandBody').innerHTML=`<div class="bars">${rows.map(([op,n],i)=>`
+    <div class="bar-row">
+      <div class="bar-lbl" title="${opMap[op]||op}">${opMap[op]||op}</div>
+      <div class="bar-bg"><div class="bar-fill" style="width:${(n/max*100).toFixed(1)}%;background:${WARM[i%WARM.length]}"></div></div>
+      <div class="bar-val">${fmt(n)} <span style="color:var(--text-muted);font-size:10px">${(n/total*100).toFixed(1)}%</span></div>
+    </div>`).join('')}</div>`;
+}
+
+function renderCrossBorder(stats){
+  const total=stats.total_trips||1,cross=stats.cross_border_trips||0,dom=total-cross;
+  const cp=(cross/total*100).toFixed(1),dp=(dom/total*100).toFixed(1);
+  $('demandBody').innerHTML=`
+    <div class="metric-row" style="max-width:440px">
+      <div class="metric-box">
+        <div class="metric-lbl">Cross-border</div>
+        <div class="metric-val" style="color:var(--amber)">${fmt(cross)}</div>
+        <div class="metric-sub">${cp}% of total</div>
+      </div>
+      <div class="metric-box">
+        <div class="metric-lbl">Domestic</div>
+        <div class="metric-val" style="color:var(--blue)">${fmt(dom)}</div>
+        <div class="metric-sub">${dp}% of total</div>
+      </div>
+    </div>
+    <div class="bars" style="max-width:440px;margin-top:10px">
+      <div class="bar-row">
+        <div class="bar-lbl">Cross-border</div>
+        <div class="bar-bg"><div class="bar-fill" style="width:${cp}%;background:var(--amber)"></div></div>
+        <div class="bar-val">${cp}%</div>
+      </div>
+      <div class="bar-row">
+        <div class="bar-lbl">Domestic</div>
+        <div class="bar-bg"><div class="bar-fill" style="width:${dp}%;background:var(--blue)"></div></div>
+        <div class="bar-val">${dp}%</div>
+      </div>
+    </div>`;
+}
+
+function renderNightShare(trips,cov){
+  const byC={};
+  trips.forEach(t=>{const c=t.country||'?';if(!byC[c])byC[c]={t:0,n:0};byC[c].t++;if(t.is_night)byC[c].n++;});
+  const covMap=Object.fromEntries(cov.map(c=>[c.country_code,c.name_en||c.name_fr||c.country_code]));
+  const rows=Object.entries(byC).map(([c,v])=>({c,name:covMap[c]||c,pct:(v.n/v.t*100).toFixed(1)})).sort((a,b)=>b.pct-a.pct);
+  const max=rows[0]?.pct||1;
+  $('demandBody').innerHTML=`<div class="bars">${rows.map((r,i)=>`
+    <div class="bar-row">
+      <div class="bar-lbl">${r.name}</div>
+      <div class="bar-bg"><div class="bar-fill" style="width:${(+r.pct/+max*100).toFixed(1)}%;background:${WARM[i%WARM.length]}"></div></div>
+      <div class="bar-val">${r.pct}%</div>
+    </div>`).join('')}</div>`;
+}
+
+// ================================================================
+//  COVERAGE
+// ================================================================
+async function loadCoverageFull(){
+  if($('coverageFullBody').dataset.loaded)return;
+  loading('coverageFullBody');
+  try{
+    const data=await api('/coverage');
+    const total=data.reduce((s,r)=>s+r.trips,0)||1;
+    $('coverageFullBody').innerHTML=`<table>
+      <thead><tr><th>Country</th><th>ISO3</th><th>Trips</th><th>Share</th></tr></thead>
+      <tbody>${data.map(r=>`<tr>
+        <td class="strong">${r.name_en||r.name_fr||r.country_code}</td>
+        <td>${badge(r.iso3_code||r.country_code,'blue')}</td>
+        <td class="mono">${fmt(r.trips)}</td>
+        <td><div style="display:flex;align-items:center;gap:8px">
+          <div class="bar-bg" style="width:90px"><div class="bar-fill" style="width:${(r.trips/total*100).toFixed(1)}%;background:var(--gold)"></div></div>
+          <span class="mono" style="font-size:10.5px;color:var(--text-muted)">${(r.trips/total*100).toFixed(1)}%</span>
+        </div></td>
+      </tr>`).join('')}</tbody>
+    </table>`;
+    $('coverageFullBody').dataset.loaded='1';
+  }catch(e){$('coverageFullBody').innerHTML=`<div class="state">Failed: ${e.message}</div>`}
+}
+
+// ================================================================
+//  OPERATORS
+// ================================================================
+async function loadOperators(){
+  if($('operatorsTable').dataset.loaded)return;
+  loading('operatorsTable');
+  try{
+    const data=await api('/operators');
+    $('operatorsTable').innerHTML=`<table>
+      <thead><tr><th>Operator ID</th><th>Name</th><th>Country</th><th>Type</th></tr></thead>
+      <tbody>${data.map(o=>`<tr>
+        <td class="mono" style="color:var(--gold-light)">${o.operator_id}</td>
+        <td class="strong">${o.operator_name||'–'}</td>
+        <td>${o.operator_country||'–'}</td>
+        <td>${o.is_night_operator?badge('Night','purple'):badge('Day','blue')}</td>
+      </tr>`).join('')}</tbody>
+    </table>`;
+    $('operatorsTable').dataset.loaded='1';
+  }catch(e){$('operatorsTable').innerHTML=`<div class="state">Failed: ${e.message}</div>`}
+}
+
+// ================================================================
+//  TRIP EXPLORER
+// ================================================================
+let map,routeLayer,_mapReady=false;
+
+function initMapOnce(){
+  if(_mapReady)return;
+  map=L.map('map').setView([48.5,10],5);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    {maxZoom:18,attribution:'&copy; OpenStreetMap contributors'}).addTo(map);
+  routeLayer=L.layerGroup().addTo(map);
+  _mapReady=true;
+}
+
+async function loadCountries(){
+  try{
+    const data=await api('/countries');
+    const sel=$('expCountry');
+    data.forEach(r=>{
+      const o=document.createElement('option');
+      o.value=r.country_code;
+      o.textContent=`${r.country_code} – ${r.name_en||r.name_fr||''}`;
+      sel.appendChild(o);
+    });
+  }catch(e){}
+}
+
+async function loadTrips(){
+  initMapOnce();
+  const p=new URLSearchParams();
+  const v=id=>$(id).value.trim();
+  if(v('expCountry'))  p.append('country_code',     v('expCountry'));
+  if(v('expOperator')) p.append('operator_id',       v('expOperator'));
+  if(v('expDep'))      p.append('departure_station', v('expDep'));
+  if(v('expArr'))      p.append('arrival_station',   v('expArr'));
+  if(v('expNight'))    p.append('is_night',           v('expNight'));
+  p.append('limit',v('expLimit')||50);
+
+  $('tripTable').innerHTML=`<div class="state"><span class="spinner"></span>Querying</div>`;
+  routeLayer.clearLayers();
+
+  try{
+    const data=await api('/trips?'+p);
+    const co2=v('expCo2Mode')==='column',cabin=v('expCabin');
+    $('tripCount').textContent=`${data.length} row${data.length!==1?'s':''}`;
+
+    if(!data.length){
+      $('tripTable').innerHTML='<div class="state">No results. Adjust parameters.</div>';
+      return;
+    }
+
+    const th=co2
+      ?'<th>ID</th><th>Country</th><th>Operator</th><th>Type</th><th>From</th><th>To</th><th>Dist</th><th>Train CO2</th><th>Plane CO2</th><th>Saving</th><th></th>'
+      :'<th>ID</th><th>Country</th><th>Operator</th><th>Type</th><th>Date</th><th>Dep.</th><th>From</th><th>To</th><th></th>';
+
+    let bounds=[];
+    const trs=data.map(row=>{
+      const tb=row.is_night?badge('Night','purple'):badge('Day','blue');
+      const sb=`<button class="btn btn-ghost" style="font-size:10.5px;padding:3px 8px" onclick="loadStops('${row.trip_id}','${row.operator}','${row.country}')">Stops</button>`;
+      let d=null,tG=null,pG=null;
+      if(row.departure_lat&&row.arrival_lat){
+        d=haversine(+row.departure_lat,+row.departure_lon,+row.arrival_lat,+row.arrival_lon)*DETOUR;
+        tG=Math.round(d*CO2_TRAIN);pG=Math.round(d*CO2_PLANE[cabin]);
+        L.polyline([[+row.departure_lat,+row.departure_lon],[+row.arrival_lat,+row.arrival_lon]],
+          {color:'#c8952a',weight:1.5,opacity:.5}).addTo(routeLayer);
+        bounds.push([+row.departure_lat,+row.departure_lon],[+row.arrival_lat,+row.arrival_lon]);
+      }
+      if(co2){
+        const sv=tG!=null?pG-tG:null,pc=sv!=null?Math.round(sv/pG*100):null;
+        const sB=sv!=null?(sv>0?badge('-'+fmt(sv)+' g ('+pc+'%)','green'):badge('+'+fmt(Math.abs(sv))+' g','red')):'–';
+        return`<tr><td class="mono">${row.fact_trip_key}</td><td>${row.country||''}</td><td>${row.operator||''}</td>
+          <td>${tb}</td><td class="strong">${row.departure_station||''}</td><td class="strong">${row.arrival_station||''}</td>
+          <td class="mono">${d?Math.round(d)+' km':'–'}</td>
+          <td class="mono" style="color:var(--green)">${tG!=null?tG+' g':'–'}</td>
+          <td class="mono" style="color:var(--red)">${pG!=null?pG+' g':'–'}</td>
+          <td>${sB}</td><td>${sb}</td></tr>`;
+      }else{
+        return`<tr><td class="mono">${row.fact_trip_key}</td><td>${row.country||''}</td><td>${row.operator||''}</td>
+          <td>${tb}</td><td class="mono">${row.departure_date||''}</td><td class="mono">${row.departure_time||''}</td>
+          <td class="strong">${row.departure_station||''}</td><td class="strong">${row.arrival_station||''}</td>
+          <td>${sb}</td></tr>`;
+      }
+    });
+
+    $('tripTable').innerHTML=`<table><thead><tr>${th}</tr></thead><tbody>${trs.join('')}</tbody></table>`;
+    if(bounds.length)map.fitBounds(bounds,{padding:[24,24]});
+  }catch(e){$('tripTable').innerHTML=`<div class="state">Error: ${e.message}</div>`}
+}
+
+async function loadStops(tripId,opId,cc){
+  try{
+    const p=new URLSearchParams({trip_id:tripId,operator_id:opId,country_code:cc});
+    const data=await api('/trip_stops?'+p);
+    $('stopsList').innerHTML=data.length
+      ?data.map(s=>`<div class="stop-row">
+          <span class="stop-seq">${String(s.stop_sequence).padStart(2,'0')}</span>
+          <span class="stop-name">${s.stop_name||s.stop_id}</span>
+          <span class="stop-meta">${s.stop_lat}, ${s.stop_lon} &middot; arr ${s.arrival_time||'–'} dep ${s.departure_time||'–'}</span>
+        </div>`).join('')
+      :'<div class="state">No stops found.</div>';
+    $('stopsCard').style.display='block';
+    $('stopsCard').scrollIntoView({behavior:'smooth'});
+  }catch(e){alert('Could not load stops: '+e.message)}
+}
+
+// ================================================================
+//  INIT
+// ================================================================
+loadCountries();
+loadOverview();
+</script>
+</body>
+</html>
