@@ -82,6 +82,7 @@ class TripSegment(BaseModel):
     arrival_lon: Optional[float]
     is_night: Optional[bool]
     is_cross_border: Optional[bool]
+    distance_km: Optional[int]
 
 
 # ── /trips ────────────────────────────────────────────────────────────────────
