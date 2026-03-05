@@ -229,7 +229,17 @@ def list_countries(db=Depends(get_db)):
 
 
 @app.get("/operators", tags=["referential"])
-def list_operators(db=Depends(get_db)):
+def list_operators(
+    type_transport: Optional[str] = Query(default=None, min_length=2, max_length=32),
+    db=Depends(get_db),
+):
+    filters: list[str] = []
+    params: list = []
+    if type_transport:
+        filters.append("type_transport = %s")
+        params.append(type_transport)
+
+    where = f"WHERE {' AND '.join(filters)}" if filters else ""
     sql = f"""
         SELECT
             COALESCE(specificite, type_transport) AS operator_id,
@@ -237,11 +247,12 @@ def list_operators(db=Depends(get_db)):
             NULL::text AS operator_country,
             (MAX(CASE WHEN train_type = 105 THEN 1 ELSE 0 END) = 1) AS is_night_operator
         FROM {SCHEMA}.vehicule
+        {where}
         GROUP BY COALESCE(specificite, type_transport)
         ORDER BY operator_name;
     """
     with db.cursor() as cur:
-        cur.execute(sql)
+        cur.execute(sql, params)
         rows = cur.fetchall()
     return [
         {
@@ -256,9 +267,11 @@ def list_operators(db=Depends(get_db)):
 
 @app.get("/trips", tags=["trips"])
 def list_trips_legacy(
+    type_transport: Optional[str] = Query(default=None, min_length=2, max_length=32),
     is_night: Optional[bool] = Query(default=None),
     country_code: Optional[str] = Query(default=None, min_length=2, max_length=8),
     operator_id: Optional[str] = Query(default=None, min_length=1, max_length=128),
+    train_kind: Optional[str] = Query(default=None, min_length=2, max_length=32),
     departure_station: Optional[str] = Query(default=None, min_length=2, max_length=256),
     arrival_station: Optional[str] = Query(default=None, min_length=2, max_length=256),
     limit: int = Query(default=100, ge=1, le=10000),
@@ -268,6 +281,9 @@ def list_trips_legacy(
     filters: list[str] = []
     params: list = []
 
+    if type_transport:
+        filters.append("v.type_transport = %s")
+        params.append(type_transport)
     if is_night is not None:
         filters.append("t.is_night = %s")
         params.append(is_night)
@@ -277,6 +293,20 @@ def list_trips_legacy(
     if operator_id:
         filters.append("COALESCE(v.specificite, v.type_transport) = %s")
         params.append(operator_id)
+    if train_kind:
+        kind = train_kind.lower().strip()
+        patterns: list[str] | None = None
+        if kind == "tgv":
+            patterns = ["%tgv%", "%inoui%"]
+        elif kind == "rer":
+            patterns = ["%rer%"]
+        elif kind in ("intercite", "intercité", "intercity"):
+            patterns = ["%intercite%", "%intercité%", "%intercity%"]
+        if patterns:
+            filters.append(
+                "v.type_transport = 'train' AND (" + " OR ".join(["v.specificite ILIKE %s"] * len(patterns)) + ")"
+            )
+            params.extend(patterns)
     if departure_station:
         filters.append("ds.station_name ILIKE %s")
         params.append(f"%{departure_station}%")
@@ -290,6 +320,8 @@ def list_trips_legacy(
             t.trajet_id AS fact_trip_key,
             COALESCE(ds.pays, a.pays) AS country,
             COALESCE(v.specificite, v.type_transport) AS operator,
+            v.type_transport AS type_transport,
+            v.specificite AS specificite,
             t.trajet_id::text AS trip_id,
             NULL::text AS route_id,
             ds.station_name AS departure_station,
@@ -298,6 +330,8 @@ def list_trips_legacy(
             ds.longitude AS departure_lon,
             a.latitude AS arrival_lat,
             a.longitude AS arrival_lon,
+            t.distance_km AS distance_km,
+            t.co2_kg AS co2_kg,
             NULL::text AS departure_time,
             NULL::text AS arrival_time,
             NULL::text AS departure_date,
@@ -326,47 +360,53 @@ def list_trips_legacy(
             "fact_trip_key": r[0],
             "country": r[1],
             "operator": r[2],
-            "trip_id": r[3],
-            "route_id": r[4],
-            "departure_station": r[5],
-            "arrival_station": r[6],
-            "departure_lat": r[7],
-            "departure_lon": r[8],
-            "arrival_lat": r[9],
-            "arrival_lon": r[10],
-            "departure_time": r[11],
-            "arrival_time": r[12],
-            "departure_date": r[13],
-            "arrival_date": r[14],
-            "is_night": r[15],
-            "is_cross_border": r[16],
+            "type_transport": r[3],
+            "specificite": r[4],
+            "trip_id": r[5],
+            "route_id": r[6],
+            "departure_station": r[7],
+            "arrival_station": r[8],
+            "departure_lat": r[9],
+            "departure_lon": r[10],
+            "arrival_lat": r[11],
+            "arrival_lon": r[12],
+            "distance_km": r[13],
+            "co2_kg": r[14],
+            "departure_time": r[15],
+            "arrival_time": r[16],
+            "departure_date": r[17],
+            "arrival_date": r[18],
+            "is_night": r[19],
+            "is_cross_border": r[20],
         }
         for r in rows
     ]
 
 
-@app.get("/trip_stops", tags=["trips"])
-def list_trip_stops_legacy(
-    trip_id: str = Query(min_length=1, max_length=128),
-    operator_id: str = Query(min_length=1, max_length=128),
-    country_code: str = Query(min_length=2, max_length=8),
-):
-    return []
-
-
 @app.get("/coverage", tags=["stats"])
-def coverage_legacy(db=Depends(get_db)):
+def coverage_legacy(
+    type_transport: Optional[str] = Query(default=None, min_length=2, max_length=32),
+    db=Depends(get_db),
+):
+    filters: list[str] = []
+    params: list = []
+    if type_transport:
+        filters.append("v.type_transport = %s")
+        params.append(type_transport)
+    where = f"AND {' AND '.join(filters)}" if filters else ""
     sql = f"""
         WITH trip_countries AS (
             SELECT t.trajet_id, ds.pays AS country_code
             FROM {SCHEMA}.trajet t
+            LEFT JOIN {SCHEMA}.vehicule v ON v.vehicule_id = t.vehicule_id
             LEFT JOIN {SCHEMA}.station ds ON ds.station_id = t.departure_station_id
-            WHERE ds.pays IS NOT NULL AND ds.pays <> ''
+            WHERE ds.pays IS NOT NULL AND ds.pays <> '' {where}
             UNION
             SELECT t.trajet_id, a.pays AS country_code
             FROM {SCHEMA}.trajet t
+            LEFT JOIN {SCHEMA}.vehicule v ON v.vehicule_id = t.vehicule_id
             LEFT JOIN {SCHEMA}.station a ON a.station_id = t.arrival_station_id
-            WHERE a.pays IS NOT NULL AND a.pays <> ''
+            WHERE a.pays IS NOT NULL AND a.pays <> '' {where}
         )
         SELECT
             country_code,
@@ -379,7 +419,7 @@ def coverage_legacy(db=Depends(get_db)):
         ORDER BY trips DESC;
     """
     with db.cursor() as cur:
-        cur.execute(sql)
+        cur.execute(sql, params)
         rows = cur.fetchall()
     return [
         {
@@ -394,7 +434,16 @@ def coverage_legacy(db=Depends(get_db)):
 
 
 @app.get("/stats/coverage", tags=["stats"])
-def coverage_stats_legacy(db=Depends(get_db)):
+def coverage_stats_legacy(
+    type_transport: Optional[str] = Query(default=None, min_length=2, max_length=32),
+    db=Depends(get_db),
+):
+    filters: list[str] = []
+    params: list = []
+    if type_transport:
+        filters.append("v.type_transport = %s")
+        params.append(type_transport)
+    where = f"WHERE {' AND '.join(filters)}" if filters else ""
     sql = f"""
         SELECT
             COUNT(*) AS total_trips,
@@ -406,11 +455,13 @@ def coverage_stats_legacy(db=Depends(get_db)):
                 END
             ) AS cross_border_trips
         FROM {SCHEMA}.trajet t
+        LEFT JOIN {SCHEMA}.vehicule v ON v.vehicule_id = t.vehicule_id
         LEFT JOIN {SCHEMA}.station ds ON ds.station_id = t.departure_station_id
-        LEFT JOIN {SCHEMA}.station a ON a.station_id = t.arrival_station_id;
+        LEFT JOIN {SCHEMA}.station a ON a.station_id = t.arrival_station_id
+        {where};
     """
     with db.cursor() as cur:
-        cur.execute(sql)
+        cur.execute(sql, params)
         row = cur.fetchone()
 
     if not row:
@@ -476,6 +527,7 @@ def list_vehicules(
 def list_stations(
     pays: Optional[str] = Query(default=None, min_length=2, max_length=8),
     country_code: Optional[str] = Query(default=None, min_length=2, max_length=8),
+    type_transport: Optional[str] = Query(default=None, min_length=2, max_length=32),
     name: Optional[str] = Query(default=None, min_length=1, max_length=256),
     limit: int = Query(default=5000, ge=1, le=20000),
     offset: int = Query(default=0, ge=0),
@@ -491,20 +543,55 @@ def list_stations(
         filters.append("station_name ILIKE %s")
         params.append(f"%{name}%")
     where = f"WHERE {' AND '.join(filters)}" if filters else ""
-    sql_with_stop_id = f"""
-        SELECT station_id, stop_id, station_name, latitude, longitude, pays
-        FROM {SCHEMA}.station
-        {where}
-        ORDER BY station_name
-        LIMIT %s OFFSET %s;
-    """
-    sql_without_stop_id = f"""
-        SELECT station_id, station_name, latitude, longitude, pays
-        FROM {SCHEMA}.station
-        {where}
-        ORDER BY station_name
-        LIMIT %s OFFSET %s;
-    """
+    if type_transport:
+        params.insert(0, type_transport)
+        station_filter = f"""
+            WITH station_ids AS (
+                SELECT t.departure_station_id AS station_id
+                FROM {SCHEMA}.trajet t
+                JOIN {SCHEMA}.vehicule v ON v.vehicule_id = t.vehicule_id
+                WHERE v.type_transport = %s
+                UNION
+                SELECT t.arrival_station_id AS station_id
+                FROM {SCHEMA}.trajet t
+                JOIN {SCHEMA}.vehicule v ON v.vehicule_id = t.vehicule_id
+                WHERE v.type_transport = %s
+            )
+        """
+        params.insert(1, type_transport)
+        sql_with_stop_id = f"""
+            {station_filter}
+            SELECT s.station_id, s.stop_id, s.station_name, s.latitude, s.longitude, s.pays
+            FROM {SCHEMA}.station s
+            JOIN station_ids f ON f.station_id = s.station_id
+            {where}
+            ORDER BY s.station_name
+            LIMIT %s OFFSET %s;
+        """
+        sql_without_stop_id = f"""
+            {station_filter}
+            SELECT s.station_id, s.station_name, s.latitude, s.longitude, s.pays
+            FROM {SCHEMA}.station s
+            JOIN station_ids f ON f.station_id = s.station_id
+            {where}
+            ORDER BY s.station_name
+            LIMIT %s OFFSET %s;
+        """
+    else:
+        sql_with_stop_id = f"""
+            SELECT station_id, stop_id, station_name, latitude, longitude, pays
+            FROM {SCHEMA}.station
+            {where}
+            ORDER BY station_name
+            LIMIT %s OFFSET %s;
+        """
+        sql_without_stop_id = f"""
+            SELECT station_id, station_name, latitude, longitude, pays
+            FROM {SCHEMA}.station
+            {where}
+            ORDER BY station_name
+            LIMIT %s OFFSET %s;
+        """
     params.extend([limit, offset])
     with db.cursor() as cur:
         try:

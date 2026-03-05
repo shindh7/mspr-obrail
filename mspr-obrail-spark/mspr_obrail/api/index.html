@@ -641,36 +641,7 @@
             line-height: 1.6
         }
 
-        /* ── Stops panel ───────────────────────────────────────────────── */
-        .stop-row {
-            padding: 7px 0;
-            border-bottom: 1px solid var(--border);
-            display: flex;
-            align-items: baseline;
-            gap: 10px;
-            font-size: 12px;
-        }
-
-        .stop-row:last-child {
-            border: 0
-        }
-
-        .stop-seq {
-            color: var(--accent);
-            font-weight: 600;
-            min-width: 22px;
-            font-size: 11px
-        }
-
-        .stop-name {
-            font-weight: 500;
-            color: var(--text)
-        }
-
-        .stop-meta {
-            color: var(--muted);
-            font-size: 11px
-        }
+        /* ─────────────────────────────────────────────────────────────── */
     </style>
 </head>
 
@@ -758,6 +729,23 @@
 
         <!-- MAIN -->
         <main>
+            <div class="card" id="globalFilters" style="margin-bottom:16px">
+                <div class="card-head">
+                    <div class="card-title">Filters</div>
+                </div>
+                <div class="card-body">
+                    <div class="controls">
+                        <div class="ctrl">
+                            <div class="ctrl-lbl">Transport</div>
+                            <select id="globalTransport" onchange="reloadActivePage()">
+                                <option value="">All</option>
+                                <option value="train">Train</option>
+                                <option value="avion">Avion</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
 
             <!-- OVERVIEW -->
             <div id="pg-overview" class="page">
@@ -818,7 +806,7 @@
                                 <input type="text" id="expArr" placeholder="Lyon" style="width:120px" />
                             </div>
                             <div class="ctrl">
-                                <div class="ctrl-lbl">Type</div>
+                                <div class="ctrl-lbl">Service</div>
                                 <select id="expNight">
                                     <option value="">All</option>
                                     <option value="false">Day</option>
@@ -833,11 +821,20 @@
                                 </select>
                             </div>
                             <div class="ctrl">
-                                <div class="ctrl-lbl">Cabin class</div>
-                                <select id="expCabin">
-                                    <option value="economy">Economy</option>
-                                    <option value="business">Business</option>
-                                    <option value="first">First</option>
+                                <div class="ctrl-lbl">Transport</div>
+                                <select id="expTransport">
+                                    <option value="">All</option>
+                                    <option value="train">Train</option>
+                                    <option value="avion">Avion</option>
+                                </select>
+                            </div>
+                            <div class="ctrl">
+                                <div class="ctrl-lbl">Train Type</div>
+                                <select id="expTrainType">
+                                    <option value="">All</option>
+                                    <option value="tgv">TGV</option>
+                                    <option value="rer">RER</option>
+                                    <option value="intercite">Intercité</option>
                                 </select>
                             </div>
                             <div class="ctrl">
@@ -859,16 +856,6 @@
                         <div class="state">Run a search to display trips.</div>
                     </div>
                 </div>
-
-                <div class="card" id="stopsCard" style="display:none">
-                    <div class="card-head">
-                        <div class="card-title">Intermediate Stops</div>
-                        <button class="btn btn-ghost"
-                            onclick="document.getElementById('stopsCard').style.display='none'">Close</button>
-                    </div>
-                    <div class="card-body" id="stopsList"></div>
-                </div>
-
                 <div class="card">
                     <div class="card-head">
                         <div class="card-title">Route Map</div>
@@ -1021,7 +1008,7 @@
         // ================================================================
         //  CONFIG
         // ================================================================
-        const CO2_PLANE = { economy: 89, business: 198, first: 290 };
+        const CO2_PLANE = { economy: 100.8, business: 100.8, first: 100.8 };
         const CO2_TRAIN = 35;
         const DETOUR = 1.3;
         const PALETTE = ['#4f7ef7', '#34c98a', '#e8a838', '#9b7cf4', '#e05252', '#38c4e8', '#f97b4f'];
@@ -1040,6 +1027,13 @@
 
         function fmt(n) { return n == null ? '–' : Number(n).toLocaleString('en'); }
 
+        function fmtKg(n, digits = 2) {
+            return n == null ? 'â€“' : Number(n).toLocaleString('en', {
+                minimumFractionDigits: digits,
+                maximumFractionDigits: digits
+            });
+        }
+
         function badge(text, cls) {
             return `<span class="badge badge-${cls}">${text}</span>`;
         }
@@ -1057,11 +1051,49 @@
         // ================================================================
         //  NAVIGATION
         // ================================================================
+        let _activePage = 'overview';
+
+        function currentTransport() { return gv('globalTransport'); }
+
+        function reloadActivePage() {
+            if (_activePage === 'overview') {
+                $('overviewKpis').dataset.loaded = '';
+                loadOverview();
+                return;
+            }
+            if (_activePage === 'coverage') {
+                $('coverageFullBody').dataset.loaded = '';
+                loadCoverageFull();
+                return;
+            }
+            if (_activePage === 'operators') {
+                $('operatorsTable').dataset.loaded = '';
+                loadOperators();
+                return;
+            }
+            if (_activePage === 'stations') {
+                loadStations();
+                return;
+            }
+            if (_activePage === 'explorer') {
+                loadTrips();
+                return;
+            }
+            if (_activePage === 'environmental') {
+                loadEnvKpi();
+                return;
+            }
+            if (_activePage === 'demand') {
+                loadDemandKpi();
+            }
+        }
+
         function nav(page, el) {
             document.querySelectorAll('.page').forEach(p => p.style.display = 'none');
             document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
             $(`pg-${page}`).style.display = 'block';
             el.classList.add('active');
+            _activePage = page;
             if (page === 'overview') loadOverview();
             if (page === 'explorer') initMapOnce();
             if (page === 'environmental') loadEnvKpi();
@@ -1079,7 +1111,9 @@
         async function loadOverview() {
             if ($('overviewKpis').dataset.loaded) return;
             try {
-                const [stats, cov] = await Promise.all([api('/stats/coverage'), api('/coverage')]);
+                const t = currentTransport();
+                const tp = t ? `?type_transport=${encodeURIComponent(t)}` : '';
+                const [stats, cov] = await Promise.all([api('/stats/coverage' + tp), api('/coverage' + tp)]);
                 _coverageData = cov;
 
                 const np = stats.night_ratio ? (stats.night_ratio * 100).toFixed(1) : '–';
@@ -1149,7 +1183,9 @@
             $('envKpiTitle').textContent = ENV_TITLES[kpi];
             loading('envKpiBody');
             try {
-                const trips = await api(`/trips?limit=${lim}`);
+                const t = currentTransport();
+                const tp = t ? `&type_transport=${encodeURIComponent(t)}` : '';
+                const trips = await api(`/trips?limit=${lim}${tp}`);
                 const valid = trips.filter(t => t.departure_lat && t.arrival_lat);
                 if (kpi === 'co2_route') renderCo2Route(valid, cabin);
                 else if (kpi === 'co2_km') renderCo2Km(valid, cabin);
@@ -1161,92 +1197,129 @@
 
         function dist(t) { return haversine(+t.departure_lat, +t.departure_lon, +t.arrival_lat, +t.arrival_lon) * DETOUR; }
 
-        function renderCo2Route(trips, cabin) {
-            const rows = trips.map(t => {
-                const d = dist(t), tG = Math.round(d * CO2_TRAIN), pG = Math.round(d * CO2_PLANE[cabin]);
-                return { t, d: Math.round(d), tG, pG, sv: pG - tG, pc: Math.round(((pG - tG) / pG) * 100) };
-            }).sort((a, b) => b.sv - a.sv).slice(0, 15);
+        function transportLabel(typeTransport, specificite) {
+            if (typeTransport === 'avion') return 'Avion';
+            const s = (specificite || '').toLowerCase();
+            if (s.includes('tgv') || s.includes('inoui')) return 'TGV';
+            if (s.includes('rer')) return 'RER';
+            if (s.includes('intercite') || s.includes('intercité') || s.includes('intercity')) return 'Intercité';
+            if (s.includes('ter')) return 'TER';
+            return 'Train';
+        }
 
-            const avgT = Math.round(rows.reduce((s, r) => s + r.tG, 0) / rows.length);
-            const avgP = Math.round(rows.reduce((s, r) => s + r.pG, 0) / rows.length);
+        function renderCo2Route(trips, cabin) {
+                const rows = trips.map(t => {
+                    const d = t.distance_km ? +t.distance_km : dist(t);
+                    const tKg = (t.type_transport === 'train' && t.co2_kg != null)
+                        ? +t.co2_kg
+                        : (d * CO2_TRAIN) / 1000;
+                    const pKg = (t.type_transport === 'avion' && t.co2_kg != null)
+                        ? +t.co2_kg
+                        : (d * CO2_PLANE[cabin]) / 1000;
+                    return {
+                        t,
+                        d: Math.round(d),
+                        tKg,
+                        pKg,
+                        sv: pKg - tKg,
+                        pc: Math.round(((pKg - tKg) / pKg) * 100)
+                    };
+                }).sort((a, b) => b.sv - a.sv).slice(0, 15);
+
+            const avgT = rows.reduce((s, r) => s + r.tKg, 0) / rows.length;
+            const avgP = rows.reduce((s, r) => s + r.pKg, 0) / rows.length;
 
             $('envKpiBody').innerHTML = `
     <div class="metric-pair" style="margin-bottom:16px">
       <div class="metric-box">
         <div class="metric-lbl">Avg train CO2 / route</div>
-        <div class="metric-val" style="color:var(--green)">${fmt(avgT)} g</div>
+        <div class="metric-val" style="color:var(--green)">${fmtKg(avgT)} kg</div>
       </div>
       <div class="metric-box">
         <div class="metric-lbl">Avg plane CO2 / route (${cabin})</div>
-        <div class="metric-val" style="color:var(--red)">${fmt(avgP)} g</div>
+        <div class="metric-val" style="color:var(--red)">${fmtKg(avgP)} kg</div>
       </div>
     </div>
     <div class="tbl-wrap">
     <table><thead><tr>
       <th>Route</th><th>Dist (km)</th>
-      <th>Train CO2 (g)</th><th>Plane CO2 (g)</th><th>Saving</th>
+      <th>Train CO2 (kg)</th><th>Plane CO2 (kg)</th><th>Saving</th>
     </tr></thead><tbody>
     ${rows.map(r => `<tr>
       <td style="font-weight:500;color:var(--text)">${r.t.departure_station || '?'} &rarr; ${r.t.arrival_station || '?'}</td>
       <td>${r.d}</td>
-      <td style="color:var(--green);font-weight:600">${fmt(r.tG)}</td>
-      <td style="color:var(--red);font-weight:600">${fmt(r.pG)}</td>
-      <td>${badge('-' + fmt(r.sv) + ' g (' + r.pc + '%)', 'green')}</td>
+      <td style="color:var(--green);font-weight:600">${fmtKg(r.tKg)}</td>
+      <td style="color:var(--red);font-weight:600">${fmtKg(r.pKg)}</td>
+      <td>${badge('-' + fmtKg(r.sv) + ' kg (' + r.pc + '%)', 'green')}</td>
     </tr>`).join('')}
     </tbody></table></div>
-    <div class="source-note">Sources: EEA / ADEME. Train: ${CO2_TRAIN} g CO2/km/pax (EU electric average).
-    Plane: economy 89 g / business 198 g / first 290 g — radiative forcing x1.9 included.</div>`;
+    <div class="source-note">Sources: EEA / ADEME. Train: ${(CO2_TRAIN / 1000).toFixed(3)} kg CO2/km/pax (EU electric average).
+    Plane (short-haul commercial avg): ${(CO2_PLANE.economy / 1000).toFixed(3)} kg/km/pax - radiative forcing x1.9 included.</div>`;
         }
 
         function renderCo2Km(trips, cabin) {
             const byOp = {};
             trips.forEach(t => {
-                const op = t.operator || 'Unknown', d = dist(t);
+                const op = t.operator || 'Unknown', d = t.distance_km ? +t.distance_km : dist(t);
                 if (!byOp[op]) byOp[op] = { tT: 0, dist: 0 };
-                byOp[op].tT += Math.round(d * CO2_TRAIN); byOp[op].dist += d;
+                const tKg = (t.type_transport === 'train' && t.co2_kg != null)
+                    ? +t.co2_kg
+                    : (d * CO2_TRAIN) / 1000;
+                byOp[op].tT += tKg; byOp[op].dist += d;
             });
             const rows = Object.entries(byOp)
-                .map(([op, v]) => ({ op, gkm: (v.tT / v.dist).toFixed(1) }))
-                .sort((a, b) => a.gkm - b.gkm);
-            const max = Math.max(...rows.map(r => +r.gkm));
+                .map(([op, v]) => ({ op, kgkm: (v.tT / v.dist).toFixed(3) }))
+                .sort((a, b) => a.kgkm - b.kgkm);
+            const max = Math.max(...rows.map(r => +r.kgkm));
 
             $('envKpiBody').innerHTML = `
     <div class="bars">${rows.map((r, i) => `
       <div class="bar-row">
         <div class="bar-lbl">${r.op}</div>
-        <div class="bar-bg"><div class="bar-fill" style="width:${(+r.gkm / max * 100).toFixed(1)}%;background:${PALETTE[i % PALETTE.length]}"></div></div>
-        <div class="bar-val">${r.gkm} g/km</div>
+        <div class="bar-bg"><div class="bar-fill" style="width:${(+r.kgkm / max * 100).toFixed(1)}%;background:${PALETTE[i % PALETTE.length]}"></div></div>
+        <div class="bar-val">${r.kgkm} kg/km</div>
       </div>`).join('')}
     </div>
-    <div class="source-note">Plane reference (${cabin}): ${CO2_PLANE[cabin]} g/km/pax.</div>`;
+    <div class="source-note">Plane reference (${cabin}): ${(CO2_PLANE[cabin] / 1000).toFixed(3)} kg/km/pax.</div>`;
         }
 
         function renderDayNight(trips, cabin) {
             const day = trips.filter(t => !t.is_night), night = trips.filter(t => t.is_night);
             function avg(arr) {
                 if (!arr.length) return { tG: 0, pG: 0, d: 0 };
-                const s = arr.reduce((a, t) => { const d = dist(t); return { tG: a.tG + Math.round(d * CO2_TRAIN), pG: a.pG + Math.round(d * CO2_PLANE[cabin]), d: a.d + d }; }, { tG: 0, pG: 0, d: 0 });
-                return { tG: Math.round(s.tG / arr.length), pG: Math.round(s.pG / arr.length), d: Math.round(s.d / arr.length) };
+                const s = arr.reduce((a, t) => {
+                    const d = t.distance_km ? +t.distance_km : dist(t);
+                    const tKg = (t.type_transport === 'train' && t.co2_kg != null)
+                        ? +t.co2_kg
+                        : (d * CO2_TRAIN) / 1000;
+                    const pKg = (d * CO2_PLANE[cabin]) / 1000;
+                    return {
+                        tG: a.tG + tKg,
+                        pG: a.pG + pKg,
+                        d: a.d + d
+                    };
+                }, { tG: 0, pG: 0, d: 0 });
+                return { tG: s.tG / arr.length, pG: s.pG / arr.length, d: Math.round(s.d / arr.length) };
             }
             const dA = avg(day), nA = avg(night);
             $('envKpiBody').innerHTML = `
     <div class="metric-pair">
       <div class="metric-box">
         <div class="metric-lbl">Day trains — avg CO2 / trip</div>
-        <div class="metric-val" style="color:var(--accent)">${fmt(dA.tG)} g</div>
+        <div class="metric-val" style="color:var(--accent)">${fmtKg(dA.tG)} kg</div>
         <div class="metric-sub">Avg distance ${fmt(dA.d)} km &middot; ${day.length} trips</div>
-        <div class="metric-sub" style="color:var(--red);margin-top:8px">Plane equiv: ${fmt(dA.pG)} g</div>
+        <div class="metric-sub" style="color:var(--red);margin-top:8px">Plane equiv: ${fmtKg(dA.pG)} kg</div>
       </div>
       <div class="metric-box">
         <div class="metric-lbl">Night trains — avg CO2 / trip</div>
-        <div class="metric-val" style="color:var(--purple)">${fmt(nA.tG)} g</div>
+        <div class="metric-val" style="color:var(--purple)">${fmtKg(nA.tG)} kg</div>
         <div class="metric-sub">Avg distance ${fmt(nA.d)} km &middot; ${night.length} trips</div>
-        <div class="metric-sub" style="color:var(--red);margin-top:8px">Plane equiv: ${fmt(nA.pG)} g</div>
+        <div class="metric-sub" style="color:var(--red);margin-top:8px">Plane equiv: ${fmtKg(nA.pG)} kg</div>
       </div>
     </div>
     <div class="saving-box">
       Night trains replace flights on longer distances, saving on average
-      <strong>${fmt(nA.pG - nA.tG)} g CO2</strong> per trip compared to flying (${cabin} class).
+      <strong>${fmtKg(nA.pG - nA.tG)} kg CO2</strong> per trip compared to flying (${cabin} class).
     </div>`;
         }
 
@@ -1264,13 +1337,16 @@
             $('demandTitle').textContent = DEMAND_TITLES[kpi];
             loading('demandBody');
             try {
+                const t = currentTransport();
+                const tp = t ? `&type_transport=${encodeURIComponent(t)}` : '';
+                const tpQ = t ? `?type_transport=${encodeURIComponent(t)}` : '';
                 if (kpi === 'operator_share') {
-                    const [trips, ops] = await Promise.all([api('/trips?limit=5000'), api('/operators')]);
+                    const [trips, ops] = await Promise.all([api(`/trips?limit=5000${tp}`), api(`/operators${tpQ}`)]);
                     renderOpShare(trips, ops);
                 } else if (kpi === 'cross_border') {
-                    renderCrossBorder(await api('/stats/coverage'));
+                    renderCrossBorder(await api(`/stats/coverage${tpQ}`));
                 } else {
-                    const [trips, cov] = await Promise.all([api('/trips?limit=5000'), api('/coverage')]);
+                    const [trips, cov] = await Promise.all([api(`/trips?limit=5000${tp}`), api(`/coverage${tpQ}`)]);
                     renderNightShare(trips, cov);
                 }
             } catch (e) {
@@ -1351,7 +1427,9 @@
             if ($('coverageFullBody').dataset.loaded) return;
             loading('coverageFullBody');
             try {
-                const data = await api('/coverage');
+                const t = currentTransport();
+                const tp = t ? `?type_transport=${encodeURIComponent(t)}` : '';
+                const data = await api('/coverage' + tp);
                 const total = data.reduce((s, r) => s + r.trips, 0) || 1;
                 $('coverageFullBody').innerHTML = `<table>
       <thead><tr><th>Country</th><th>ISO3</th><th>Trips</th><th>Share</th></tr></thead>
@@ -1379,7 +1457,9 @@
             if ($('operatorsTable').dataset.loaded) return;
             loading('operatorsTable');
             try {
-                const data = await api('/operators');
+                const t = currentTransport();
+                const tp = t ? `?type_transport=${encodeURIComponent(t)}` : '';
+                const data = await api('/operators' + tp);
                 $('operatorsTable').innerHTML = `<table>
       <thead><tr><th>ID</th><th>Name</th><th>Country</th><th>Type</th></tr></thead>
       <tbody>${data.map(o => `<tr>
@@ -1400,6 +1480,8 @@
             const q = gv('stationSearch');
             if (c) p.append('country_code', c);
             if (q) p.append('name', q);
+            const t = currentTransport();
+            if (t) p.append('type_transport', t);
             p.append('limit', lim);
             loading('stationsTable');
             try {
@@ -1456,6 +1538,10 @@
             if (v('expDep')) p.append('departure_station', v('expDep'));
             if (v('expArr')) p.append('arrival_station', v('expArr'));
             if (v('expNight')) p.append('is_night', v('expNight'));
+            const localTransport = v('expTransport');
+            const t = localTransport || currentTransport();
+            if (t) p.append('type_transport', t);
+            if (v('expTrainType')) p.append('train_kind', v('expTrainType'));
             p.append('limit', v('expLimit') || 50);
 
             $('tripTable').innerHTML = `<div class="state"><span class="spinner"></span>Searching</div>`;
@@ -1464,7 +1550,7 @@
             try {
                 const data = await api('/trips?' + p);
                 const co2 = v('expCo2Mode') === 'column';
-                const cabin = v('expCabin');
+                const cabin = 'economy';
                 $('tripCount').textContent = `${data.length} result${data.length !== 1 ? 's' : ''}`;
 
                 if (!data.length) {
@@ -1473,38 +1559,43 @@
                 }
 
                 const th = co2
-                    ? '<th>ID</th><th>Country</th><th>Operator</th><th>Type</th><th>Departure</th><th>Arrival</th><th>Dist (km)</th><th>Train CO2 (g)</th><th>Plane CO2 (g)</th><th>Saving</th><th>Stops</th>'
-                    : '<th>ID</th><th>Country</th><th>Operator</th><th>Type</th><th>Date</th><th>Time</th><th>Departure</th><th>Arrival</th><th>Stops</th>';
+                    ? '<th>ID</th><th>Country</th><th>Operator</th><th>Type</th><th>Service</th><th>Departure</th><th>Arrival</th><th>Dist (km)</th><th>Train CO2 (kg)</th><th>Plane CO2 (kg)</th><th>Saving</th>'
+                    : '<th>ID</th><th>Country</th><th>Operator</th><th>Type</th><th>Service</th><th>Date</th><th>Time</th><th>Departure</th><th>Arrival</th>';
 
                 let bounds = [];
                 const trs = data.map(row => {
                     const typeBadge = row.is_night ? badge('Night', 'purple') : badge('Day', 'blue');
-                    const stopBtn = `<button class="btn btn-ghost" style="padding:3px 8px;font-size:11px"
-        onclick="loadStops('${row.trip_id}','${row.operator}','${row.country}')">View</button>`;
-                    let d = null, tG = null, pG = null;
+                    const transportLabelText = transportLabel(row.type_transport, row.specificite);
+                    let d = null, tKg = null, pKg = null;
                     if (row.departure_lat && row.arrival_lat) {
-                        d = haversine(+row.departure_lat, +row.departure_lon, +row.arrival_lat, +row.arrival_lon) * DETOUR;
-                        tG = Math.round(d * CO2_TRAIN); pG = Math.round(d * CO2_PLANE[cabin]);
+                        d = row.distance_km ? +row.distance_km
+                            : haversine(+row.departure_lat, +row.departure_lon, +row.arrival_lat, +row.arrival_lon) * DETOUR;
+                        tKg = (row.type_transport === 'train' && row.co2_kg != null)
+                            ? +row.co2_kg
+                            : (d * CO2_TRAIN) / 1000;
+                        pKg = (row.type_transport === 'avion' && row.co2_kg != null)
+                            ? +row.co2_kg
+                            : (d * CO2_PLANE[cabin]) / 1000;
                         L.polyline([[+row.departure_lat, +row.departure_lon], [+row.arrival_lat, +row.arrival_lon]],
                             { color: '#4f7ef7', weight: 1.8, opacity: .55 }).addTo(routeLayer);
                         bounds.push([+row.departure_lat, +row.departure_lon], [+row.arrival_lat, +row.arrival_lon]);
                     }
                     if (co2) {
-                        const sv = tG != null ? pG - tG : null;
-                        const pc = sv != null ? Math.round(sv / pG * 100) : null;
-                        const sB = sv != null ? (sv > 0 ? badge('-' + fmt(sv) + ' g (' + pc + '%)', 'green') : badge('+' + fmt(Math.abs(sv)) + ' g', 'red')) : '–';
+                        const sv = tKg != null ? pKg - tKg : null;
+                        const pc = sv != null ? Math.round(sv / pKg * 100) : null;
+                        const sB = sv != null ? (sv > 0 ? badge('-' + fmtKg(sv) + ' kg (' + pc + '%)', 'green') : badge('+' + fmtKg(Math.abs(sv)) + ' kg', 'red')) : '–';
                         return `<tr><td>${row.fact_trip_key}</td><td>${row.country || ''}</td><td>${row.operator || ''}</td>
-          <td>${typeBadge}</td><td>${row.departure_station || ''}</td><td>${row.arrival_station || ''}</td>
+          <td>${transportLabelText}</td><td>${typeBadge}</td><td>${row.departure_station || ''}</td><td>${row.arrival_station || ''}</td>
           <td>${d ? Math.round(d) : '–'}</td>
-          <td style="color:var(--green);font-weight:600">${tG ?? '–'}</td>
-          <td style="color:var(--red);font-weight:600">${pG ?? '–'}</td>
-          <td>${sB}</td><td>${stopBtn}</td></tr>`;
+          <td style="color:var(--green);font-weight:600">${tKg != null ? fmtKg(tKg) : '–'}</td>
+          <td style="color:var(--red);font-weight:600">${pKg != null ? fmtKg(pKg) : '–'}</td>
+          <td>${sB}</td></tr>`;
                     } else {
                         return `<tr><td>${row.fact_trip_key}</td><td>${row.country || ''}</td><td>${row.operator || ''}</td>
-          <td>${typeBadge}</td><td>${row.departure_date || ''}</td><td>${row.departure_time || ''}</td>
+          <td>${transportLabelText}</td><td>${typeBadge}</td><td>${row.departure_date || ''}</td><td>${row.departure_time || ''}</td>
           <td style="font-weight:500;color:var(--text)">${row.departure_station || ''}</td>
           <td style="font-weight:500;color:var(--text)">${row.arrival_station || ''}</td>
-          <td>${stopBtn}</td></tr>`;
+          </tr>`;
                     }
                 });
 
@@ -1514,34 +1605,6 @@
                 $('tripTable').innerHTML = `<div class="state">Error: ${e.message}</div>`;
             }
         }
-
-        async function loadStops(tripId, opId, cc) {
-            try {
-                const p = new URLSearchParams({ trip_id: tripId, operator_id: opId, country_code: cc });
-                const data = await api('/trip_stops?' + p);
-                $('stopsList').innerHTML = data.length
-                    ? data.map(s => `<div class="stop-row">
-          <span class="stop-seq">${s.stop_sequence}</span>
-          <span class="stop-name">${s.stop_name || s.stop_id}</span>
-          <span class="stop-meta">${s.stop_lat}, ${s.stop_lon} &middot; arr ${s.arrival_time || '–'} dep ${s.departure_time || '–'}</span>
-        </div>`).join('')
-                    : '<div class="state">No stops found.</div>';
-                $('stopsCard').style.display = 'block';
-                $('stopsCard').scrollIntoView({ behavior: 'smooth' });
-                if (data.length) {
-                    initMapOnce();
-                    const coords = data
-                        .filter(s => s.stop_lat && s.stop_lon)
-                        .map(s => [+s.stop_lat, +s.stop_lon]);
-                    if (coords.length >= 2) {
-                        routeLayer.clearLayers();
-                        L.polyline(coords, { color: '#34c98a', weight: 2.4, opacity: 0.75 }).addTo(routeLayer);
-                        map.fitBounds(coords, { padding: [20, 20] });
-                    }
-                }
-            } catch (e) { alert('Could not load stops: ' + e.message); }
-        }
-
         // ================================================================
         //  INIT
         // ================================================================
