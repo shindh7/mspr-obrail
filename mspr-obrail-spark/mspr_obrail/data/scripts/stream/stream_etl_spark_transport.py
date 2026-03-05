@@ -85,6 +85,15 @@ MIN_DISTANCE_KM_ENV = "MIN_DISTANCE_KM"
 DISTANCE_FACTOR_TRAIN_ENV = "DISTANCE_FACTOR_TRAIN"
 CO2_PER_KM_TRAIN_ENV = "CO2_PER_KM_TRAIN"
 CO2_PER_KM_AIR_ENV = "CO2_PER_KM_AIR"
+CO2_TGV_PER_100KM_ENV = "CO2_TGV_PER_100KM"
+CO2_INTERCITE_PER_100KM_ENV = "CO2_INTERCITE_PER_100KM"
+CO2_RER_PER_100KM_ENV = "CO2_RER_PER_100KM"
+CO2_TRAIN_DEFAULT_PER_100KM_ENV = "CO2_TRAIN_DEFAULT_PER_100KM"
+CO2_TGV_TRAIN_TYPES_ENV = "CO2_TGV_TRAIN_TYPES"
+CO2_INTERCITE_TRAIN_TYPES_ENV = "CO2_INTERCITE_TRAIN_TYPES"
+CO2_RER_TRAIN_TYPES_ENV = "CO2_RER_TRAIN_TYPES"
+FLIGHTS_COMMERCIAL_ONLY_ENV = "FLIGHTS_COMMERCIAL_ONLY"
+FLIGHTS_EU_COUNTRY_CODES_ENV = "FLIGHTS_EU_COUNTRY_CODES"
 ALLOWED_TRAIN_ROUTE_TYPES_ENV = "ALLOWED_TRAIN_ROUTE_TYPES"
 ALLOWED_AIR_ROUTE_TYPES_ENV = "ALLOWED_AIR_ROUTE_TYPES"
 PGSCHEMA_ENV = "PGSCHEMA"
@@ -107,6 +116,8 @@ DOWNLOAD_CHUNK_MB_ENV = "DOWNLOAD_CHUNK_MB"
 DEFAULT_COUNTRY_CODE_ENV = "DEFAULT_COUNTRY_CODE"
 GTFS_DEFAULT_COUNTRY_ENV = "GTFS_DEFAULT_COUNTRY"
 FLIGHTS_DEFAULT_COUNTRY_ENV = "FLIGHTS_DEFAULT_COUNTRY"
+AIRPORTS_REF_URL_ENV = "AIRPORTS_REF_URL"
+AIRPORTS_REF_PATH_ENV = "AIRPORTS_REF_PATH"
 GTFS_INCLUDE_STATIC_SOURCES_ENV = "GTFS_INCLUDE_STATIC_SOURCES"
 GTFS_XLSX_URL_ENV = "GTFS_XLSX_URL"
 GTFS_VALIDATE_URLS_ENV = "GTFS_VALIDATE_URLS"
@@ -149,7 +160,18 @@ DEFAULT_ALLOWED_AIR_ROUTE_TYPES = "1100-1107"
 DEFAULT_MIN_DISTANCE_KM = 100
 DEFAULT_DISTANCE_FACTOR_TRAIN = 1.3
 DEFAULT_CO2_PER_KM_TRAIN = 0.0
-DEFAULT_CO2_PER_KM_AIR = 0.0
+DEFAULT_CO2_PER_KM_AIR = 0.1008
+DEFAULT_AIRPORTS_REF_URL = "https://ourairports.com/data/airports.csv"
+DEFAULT_CO2_TGV_PER_100KM = 0.29
+DEFAULT_CO2_INTERCITE_PER_100KM = 0.90
+DEFAULT_CO2_RER_PER_100KM = 2.77
+DEFAULT_CO2_TRAIN_DEFAULT_PER_100KM = 0.90
+DEFAULT_CO2_TGV_TRAIN_TYPES = "101"
+DEFAULT_CO2_INTERCITE_TRAIN_TYPES = "102,103"
+DEFAULT_CO2_RER_TRAIN_TYPES = "109"
+DEFAULT_FLIGHTS_EU_COUNTRY_CODES = (
+    "AT,BE,BG,HR,CY,CZ,DK,EE,FI,FR,DE,GR,HU,IE,IT,LV,LT,LU,MT,NL,PL,PT,RO,SK,SI,ES,SE,NO,IS,CH,GB,LI"
+)
 DEFAULT_SCHEMA = "obrail_transport"
 COORD_ROUND_DECIMALS = 4
 EARTH_RADIUS_KM = 6371.0
@@ -1020,10 +1042,14 @@ def _extract_trips_from_gtfs_dir(
     trips = _read_csv(
         spark,
         trips_path,
-        ["trip_id", "route_id", "trip_short_name"],
+        ["trip_id", "route_id", "trip_short_name", "distance", "emissions"],
     )
     if "trip_short_name" not in trips.columns:
         trips = trips.withColumn("trip_short_name", F.lit(None).cast(StringType()))
+    if "distance" not in trips.columns:
+        trips = trips.withColumn("distance", F.lit(None).cast(StringType()))
+    if "emissions" not in trips.columns:
+        trips = trips.withColumn("emissions", F.lit(None).cast(StringType()))
     stop_times = _read_csv(
         spark,
         stop_times_path,
@@ -1129,6 +1155,21 @@ def _extract_trips_from_gtfs_dir(
     stops = _apply_country_bbox(stops)
 
     trips = trips.join(routes, "route_id", "inner")
+    dist_raw = F.regexp_replace(F.trim(F.col("distance").cast(StringType())), ",", ".")
+    emis_raw = F.regexp_replace(F.trim(F.col("emissions").cast(StringType())), ",", ".")
+    trips = trips.withColumn(
+        "trip_distance_km",
+        F.when(dist_raw.rlike(r"^-?\d+(\.\d+)?$"), dist_raw.cast(DoubleType()))
+        .otherwise(F.lit(None).cast(DoubleType())),
+    )
+    trips = trips.withColumn(
+        "trip_emissions_kg",
+        F.when(emis_raw.rlike(r"^-?\d+(\.\d+)?$"), emis_raw.cast(DoubleType()))
+        .otherwise(F.lit(None).cast(DoubleType())),
+    )
+    trips = trips.withColumn("distance_km", F.coalesce(F.col("trip_distance_km"), F.col("distance_km")))
+    trips = trips.withColumn("co2_kg", F.coalesce(F.col("trip_emissions_kg"), F.col("co2_kg")))
+    trips = trips.drop("distance", "emissions", "trip_distance_km", "trip_emissions_kg")
     trips = trips.withColumn(
         "night_blob",
         F.concat_ws(" ", F.col("name_blob"), F.col("trip_short_name")),
@@ -1192,6 +1233,59 @@ def _find_col(df: DataFrame, candidates: list[str]) -> str | None:
         if key in lower_map:
             return lower_map[key]
     return None
+
+
+_AIRPORTS_REF_CACHE: DataFrame | None = None
+
+
+def _load_airports_ref(spark: SparkSession, tmp_dir: str) -> DataFrame | None:
+    global _AIRPORTS_REF_CACHE
+    if _AIRPORTS_REF_CACHE is not None:
+        return _AIRPORTS_REF_CACHE
+
+    ref_path = os.environ.get(AIRPORTS_REF_PATH_ENV)
+    ref_url = os.environ.get(AIRPORTS_REF_URL_ENV, DEFAULT_AIRPORTS_REF_URL)
+    local_path = None
+    if ref_path and os.path.exists(ref_path):
+        local_path = ref_path
+    elif ref_url:
+        local_path = _download_file(ref_url, tmp_dir)
+
+    if not local_path or not os.path.exists(local_path):
+        LOGGER.warning("Airports reference introuvable: %s", ref_path or ref_url)
+        return None
+
+    ref = spark.read.option("header", True).option("inferSchema", False).csv(local_path)
+    if not ref.columns:
+        LOGGER.warning("Airports reference vide: %s", local_path)
+        return None
+
+    code_col = _find_col(ref, ["ident", "icao", "icao_code"])
+    name_col = _find_col(ref, ["name", "airport_name"])
+    lat_col = _find_col(ref, ["latitude_deg", "lat", "latitude"])
+    lon_col = _find_col(ref, ["longitude_deg", "lon", "longitude"])
+    country_col = _find_col(ref, ["iso_country", "country", "country_code"])
+
+    if not code_col or not lat_col or not lon_col:
+        LOGGER.warning("Airports reference missing columns: %s", local_path)
+        return None
+
+    ref = ref.select(
+        F.col(code_col).alias("icao_code"),
+        F.col(name_col).alias("airport_name") if name_col else F.lit(None).alias("airport_name"),
+        F.col(lat_col).alias("lat"),
+        F.col(lon_col).alias("lon"),
+        F.col(country_col).alias("country") if country_col else F.lit(None).alias("country"),
+    )
+
+    ref = ref.withColumn("icao_code", F.upper(F.trim(F.col("icao_code"))))
+    ref = ref.filter(F.col("icao_code").isNotNull() & (F.length(F.col("icao_code")) == 4))
+    ref = ref.withColumn("lat", F.col("lat").cast(DoubleType()))
+    ref = ref.withColumn("lon", F.col("lon").cast(DoubleType()))
+    ref = ref.filter(F.col("lat").isNotNull() & F.col("lon").isNotNull())
+
+    _AIRPORTS_REF_CACHE = ref
+    return ref
 
 
 def _extract_trips_from_flights_csv(
@@ -1267,6 +1361,118 @@ def _extract_trips_from_flights_csv(
     )
 
 
+def _extract_trips_from_flights_parquet(
+    spark: SparkSession,
+    parquet_path: str,
+    tmp_dir: str,
+    default_country: str | None = None,
+) -> DataFrame | None:
+    try:
+        df = spark.read.parquet(parquet_path)
+    except Exception as exc:
+        LOGGER.warning("Unable to read flights parquet: %s (%s)", parquet_path, exc)
+        return None
+
+    if not df.columns:
+        return None
+
+    adep_col = _find_col(df, ["adep"])
+    ades_col = _find_col(df, ["ades"])
+    operator_col = _find_col(df, ["icao_operator", "operator", "airline", "carrier"])
+
+    if not adep_col or not ades_col:
+        LOGGER.warning("Flights parquet missing adep/ades: %s", parquet_path)
+        return None
+
+    airports = _load_airports_ref(spark, tmp_dir)
+    if airports is None:
+        return None
+
+    df = df.withColumn("adep_code", F.upper(F.trim(F.col(adep_col))))
+    df = df.withColumn("ades_code", F.upper(F.trim(F.col(ades_col))))
+    df = df.filter(F.col("adep_code").isNotNull() & F.col("ades_code").isNotNull())
+    df = df.filter((F.length(F.col("adep_code")) == 4) & (F.length(F.col("ades_code")) == 4))
+
+    dep = airports.select(
+        F.col("icao_code").alias("adep_code"),
+        F.col("airport_name").alias("departure_station"),
+        F.col("lat").alias("departure_lat"),
+        F.col("lon").alias("departure_lon"),
+        F.col("country").alias("departure_country"),
+    )
+    arr = airports.select(
+        F.col("icao_code").alias("ades_code"),
+        F.col("airport_name").alias("arrival_station"),
+        F.col("lat").alias("arrival_lat"),
+        F.col("lon").alias("arrival_lon"),
+        F.col("country").alias("arrival_country"),
+    )
+
+    df = df.join(dep, "adep_code", "inner").join(arr, "ades_code", "inner")
+
+    df = df.withColumn("transport_type", F.lit("avion"))
+    df = df.withColumn("specificite", F.col(operator_col) if operator_col else F.lit("Avion"))
+    df = df.withColumn("train_type", F.lit(None).cast(IntegerType()))
+
+    default_country = default_country or _default_country_code("flights")
+    if default_country:
+        dep_country = F.col("departure_country")
+        arr_country = F.col("arrival_country")
+        df = df.withColumn(
+            "departure_country",
+            F.when(dep_country.isNull() | (F.trim(dep_country) == ""), F.lit(default_country)).otherwise(dep_country),
+        )
+        df = df.withColumn(
+            "arrival_country",
+            F.when(arr_country.isNull() | (F.trim(arr_country) == ""), F.lit(default_country)).otherwise(arr_country),
+        )
+
+    if _truthy_env(FLIGHTS_COMMERCIAL_ONLY_ENV, True):
+        if operator_col:
+            df = df.filter(F.col(operator_col).isNotNull() & (F.trim(F.col(operator_col)) != ""))
+        class_col = _find_col(df, ["icao_aircraft_class"])
+        if class_col:
+            df = df.filter(F.col(class_col).rlike(r"^[Ll][0-9][JT]$"))
+
+    eu_codes = [code.upper() for code in _parse_list_env(
+        os.environ.get(FLIGHTS_EU_COUNTRY_CODES_ENV, DEFAULT_FLIGHTS_EU_COUNTRY_CODES)
+    )]
+    if eu_codes:
+        df = df.filter(
+            F.col("departure_country").isin(eu_codes) & F.col("arrival_country").isin(eu_codes)
+        )
+
+    df = df.withColumn("departure_stop_id", F.col("adep_code"))
+    df = df.withColumn("arrival_stop_id", F.col("ades_code"))
+
+    df = df.withColumn(
+        "departure_station",
+        F.when(F.col("departure_station").isNull() | (F.trim(F.col("departure_station")) == ""), F.col("adep_code"))
+        .otherwise(F.col("departure_station")),
+    )
+    df = df.withColumn(
+        "arrival_station",
+        F.when(F.col("arrival_station").isNull() | (F.trim(F.col("arrival_station")) == ""), F.col("ades_code"))
+        .otherwise(F.col("arrival_station")),
+    )
+
+    return df.select(
+        "transport_type",
+        "specificite",
+        "train_type",
+        "departure_stop_id",
+        "arrival_stop_id",
+        "departure_station",
+        "departure_lat",
+        "departure_lon",
+        "departure_country",
+        "arrival_station",
+        "arrival_lat",
+        "arrival_lon",
+        "arrival_country",
+    )
+
+
 def _filter_and_distance(df: DataFrame) -> DataFrame:
     min_km_raw = os.environ.get(MIN_DISTANCE_KM_ENV)
     min_km = float(min_km_raw) if min_km_raw else DEFAULT_MIN_DISTANCE_KM
@@ -1282,18 +1488,29 @@ def _filter_and_distance(df: DataFrame) -> DataFrame:
     valid_arr = _valid_coord_expr(F.col("arrival_lat"), F.col("arrival_lon"))
     df = df.filter(valid_dep & valid_arr)
 
-    if "distance_km" in df.columns:
-        df = df.withColumn("distance_km", F.col("distance_km").cast(DoubleType()))
-        df = df.filter(F.col("distance_km").isNotNull() & (F.col("distance_km") > 0))
-        df = df.filter(F.col("distance_km") >= F.lit(min_km))
-        return df
-
     dist_raw = _haversine_km_expr(
         F.col("departure_lat"),
         F.col("departure_lon"),
         F.col("arrival_lat"),
         F.col("arrival_lon"),
     )
+
+    if "distance_km" in df.columns:
+        df = df.withColumn("distance_km", F.col("distance_km").cast(DoubleType()))
+        df = df.withColumn("distance_km_raw", dist_raw)
+        df = df.withColumn(
+            "distance_km",
+            F.when(
+                F.col("distance_km").isNull(),
+                F.when(F.col("transport_type") == F.lit("train"), F.col("distance_km_raw") * F.lit(factor_train))
+                .otherwise(F.col("distance_km_raw")),
+            ).otherwise(F.col("distance_km")),
+        )
+        df = df.drop("distance_km_raw")
+        df = df.filter(F.col("distance_km").isNotNull() & (F.col("distance_km") > 0))
+        df = df.filter(F.col("distance_km") >= F.lit(min_km))
+        return df
+
     df = df.withColumn("distance_km_raw", dist_raw)
     df = df.filter(F.col("distance_km_raw").isNotNull() & (F.col("distance_km_raw") > 0))
     df = df.filter(F.col("distance_km_raw") >= F.lit(min_km))
@@ -1412,7 +1629,7 @@ def _build_trajet_fact(df: DataFrame, stations: DataFrame, vehicles: DataFrame) 
         & (F.col("t.specificite").eqNullSafe(F.col("v.specificite")))
         & (F.col("t.train_type").eqNullSafe(F.col("v.veh_train_type"))),
         "left",
-    )
+    ).select("t.*", F.col("v.vehicule_id").alias("vehicule_id"))
 
     if "is_night" not in df.columns:
         df = df.withColumn(
@@ -1426,9 +1643,45 @@ def _build_trajet_fact(df: DataFrame, stations: DataFrame, vehicles: DataFrame) 
     co2_train = float(co2_train_raw) if co2_train_raw else DEFAULT_CO2_PER_KM_TRAIN
     co2_air = float(co2_air_raw) if co2_air_raw else DEFAULT_CO2_PER_KM_AIR
 
+    tgv_raw = os.environ.get(CO2_TGV_PER_100KM_ENV)
+    inter_raw = os.environ.get(CO2_INTERCITE_PER_100KM_ENV)
+    rer_raw = os.environ.get(CO2_RER_PER_100KM_ENV)
+    base_raw = os.environ.get(CO2_TRAIN_DEFAULT_PER_100KM_ENV)
+    co2_tgv_per_100km = float(tgv_raw) if tgv_raw else DEFAULT_CO2_TGV_PER_100KM
+    co2_inter_per_100km = float(inter_raw) if inter_raw else DEFAULT_CO2_INTERCITE_PER_100KM
+    co2_rer_per_100km = float(rer_raw) if rer_raw else DEFAULT_CO2_RER_PER_100KM
+    if base_raw:
+        co2_base_per_100km = float(base_raw)
+    elif co2_train_raw:
+        co2_base_per_100km = co2_train * 100.0
+    else:
+        co2_base_per_100km = DEFAULT_CO2_TRAIN_DEFAULT_PER_100KM
+
+    tgv_types = _parse_int_set(os.environ.get(CO2_TGV_TRAIN_TYPES_ENV, DEFAULT_CO2_TGV_TRAIN_TYPES))
+    inter_types = _parse_int_set(
+        os.environ.get(CO2_INTERCITE_TRAIN_TYPES_ENV, DEFAULT_CO2_INTERCITE_TRAIN_TYPES)
+    )
+    rer_types = _parse_int_set(os.environ.get(CO2_RER_TRAIN_TYPES_ENV, DEFAULT_CO2_RER_TRAIN_TYPES))
+
+    spec_lower = F.lower(F.coalesce(F.col("specificite"), F.lit("")))
+    is_tgv = spec_lower.contains("tgv") | F.col("train_type").isin(list(tgv_types))
+    is_inter = (
+        spec_lower.contains("intercite")
+        | spec_lower.contains("intercity")
+        | F.col("train_type").isin(list(inter_types))
+    )
+    is_rer = spec_lower.contains("rer") | F.col("train_type").isin(list(rer_types))
+
+    train_co2_per_km = (
+        F.when(is_tgv, F.lit(co2_tgv_per_100km / 100.0))
+        .when(is_inter, F.lit(co2_inter_per_100km / 100.0))
+        .when(is_rer, F.lit(co2_rer_per_100km / 100.0))
+        .otherwise(F.lit(co2_base_per_100km / 100.0))
+    )
+
     computed_co2 = F.when(
         F.col("transport_type") == F.lit("train"),
-        F.col("distance_km") * F.lit(co2_train),
+        F.col("distance_km") * train_co2_per_km,
     ).otherwise(F.col("distance_km") * F.lit(co2_air))
     if "co2_kg" in df.columns:
         df = df.withColumn("co2_kg", F.col("co2_kg").cast(DoubleType()))
@@ -1826,6 +2079,21 @@ def run_stream_etl(argv: list[str] | None = None) -> None:
                         extracted_frames.append(flights_df)
                     else:
                         LOGGER.info("Flights feed ignore (aucun trip extrait): %s", entry)
+                    continue
+
+                if local_path.lower().endswith(".parquet"):
+                    flights_df = _extract_trips_from_flights_parquet(
+                        spark,
+                        local_path,
+                        tmp_root,
+                        default_country=country_code,
+                    )
+                    if flights_df is not None:
+                        flights_df = flights_df.withColumn("_source", F.lit(entry))
+                        flights_df = flights_df.withColumn("_country", F.lit(country_code))
+                        extracted_frames.append(flights_df)
+                    else:
+                        LOGGER.info("Flights parquet ignore (aucun trip extrait): %s", entry)
                     continue
 
                 LOGGER.warning("Unsupported input type: %s", local_path)
