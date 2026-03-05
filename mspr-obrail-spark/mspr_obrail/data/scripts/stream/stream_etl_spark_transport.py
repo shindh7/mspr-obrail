@@ -108,6 +108,7 @@ DEFAULT_COUNTRY_CODE_ENV = "DEFAULT_COUNTRY_CODE"
 GTFS_DEFAULT_COUNTRY_ENV = "GTFS_DEFAULT_COUNTRY"
 FLIGHTS_DEFAULT_COUNTRY_ENV = "FLIGHTS_DEFAULT_COUNTRY"
 GTFS_INCLUDE_STATIC_SOURCES_ENV = "GTFS_INCLUDE_STATIC_SOURCES"
+GTFS_XLSX_URL_ENV = "GTFS_XLSX_URL"
 GTFS_VALIDATE_URLS_ENV = "GTFS_VALIDATE_URLS"
 GTFS_VALIDATE_TIMEOUT_ENV = "GTFS_VALIDATE_TIMEOUT"
 GTFS_VALIDATE_MAX_CANDIDATES_ENV = "GTFS_VALIDATE_MAX_CANDIDATES"
@@ -120,6 +121,7 @@ GTFS_COUNTRY_BBOX_MARGIN_ENV = "GTFS_COUNTRY_BBOX_MARGIN"
 ETL_SNAPSHOT_DIR_ENV = "ETL_SNAPSHOT_DIR"
 ETL_SNAPSHOT_WRITE_ENV = "ETL_SNAPSHOT_WRITE"
 ETL_SNAPSHOT_LOAD_ENV = "ETL_SNAPSHOT_LOAD"
+ETL_SNAPSHOT_MERGE_ENV = "ETL_SNAPSHOT_MERGE"
 ETL_SNAPSHOT_ID_ENV = "ETL_SNAPSHOT_ID"
 ETL_TRUNCATE_ENV = "ETL_TRUNCATE"
 
@@ -297,8 +299,18 @@ def _apply_country_bbox(stops: DataFrame) -> DataFrame:
     if "stop_country" not in stops.columns:
         return stops
     margin = _country_bbox_margin()
-    stops = stops.withColumn("stop_lat", F.col("stop_lat").cast(DoubleType()))
-    stops = stops.withColumn("stop_lon", F.col("stop_lon").cast(DoubleType()))
+    lat_raw = F.regexp_replace(F.trim(F.col("stop_lat").cast(StringType())), ",", ".")
+    lon_raw = F.regexp_replace(F.trim(F.col("stop_lon").cast(StringType())), ",", ".")
+    stops = stops.withColumn(
+        "stop_lat",
+        F.when(lat_raw.rlike(r"^-?\d+(\.\d+)?$"), lat_raw.cast(DoubleType()))
+        .otherwise(F.lit(None).cast(DoubleType())),
+    )
+    stops = stops.withColumn(
+        "stop_lon",
+        F.when(lon_raw.rlike(r"^-?\d+(\.\d+)?$"), lon_raw.cast(DoubleType()))
+        .otherwise(F.lit(None).cast(DoubleType())),
+    )
     cond = None
     for code, (min_lat, max_lat, min_lon, max_lon) in COUNTRY_BBOXES.items():
         within = (
@@ -555,14 +567,24 @@ def _download_file(url: str, tmp_dir: str) -> str | None:
     chunk_mb = int(chunk_raw) if chunk_raw and chunk_raw.isdigit() else 4
     chunk_size = max(1, chunk_mb) * 1024 * 1024
 
-    filename = os.path.basename(url.split("?", 1)[0]) or "download.bin"
-    target = os.path.join(tmp_dir, filename)
-
     attempts = retries + 1
     for attempt in range(1, attempts + 1):
         try:
             response = requests.get(url, stream=True, timeout=timeout)
             response.raise_for_status()
+            filename = os.path.basename(url.split("?", 1)[0]) or "download.bin"
+            content_type = response.headers.get("Content-Type", "").lower()
+            if "text/csv" in content_type and not filename.lower().endswith(".csv"):
+                filename = f"{filename}.csv"
+            if "application/zip" in content_type and not filename.lower().endswith(".zip"):
+                filename = f"{filename}.zip"
+            if "spreadsheetml" in content_type and not filename.lower().endswith(".xlsx"):
+                filename = f"{filename}.xlsx"
+            if "format=csv" in url.lower() and not filename.lower().endswith(".csv"):
+                filename = f"{filename}.csv"
+            if "format=xlsx" in url.lower() and not filename.lower().endswith(".xlsx"):
+                filename = f"{filename}.xlsx"
+            target = os.path.join(tmp_dir, filename)
             with open(target, "wb") as handle:
                 for chunk in response.iter_content(chunk_size=chunk_size):
                     if chunk:
@@ -570,7 +592,7 @@ def _download_file(url: str, tmp_dir: str) -> str | None:
             return target
         except (requests.RequestException, OSError) as exc:
             try:
-                if os.path.exists(target):
+                if "target" in locals() and os.path.exists(target):
                     os.remove(target)
             except OSError:
                 pass
@@ -765,10 +787,95 @@ def _extract_gtfs_files(zip_path: str, target_dir: str) -> dict[str, str]:
     return extracted
 
 
+def _is_zip_file(path: str) -> bool:
+    try:
+        with open(path, "rb") as handle:
+            signature = handle.read(4)
+        return signature.startswith(b"PK")
+    except OSError:
+        return False
+
+
+def _is_xlsx_file(path: str) -> bool:
+    if path.lower().endswith((".xlsx", ".xlsm", ".xltx", ".xltm")):
+        return True
+    try:
+        if not zipfile.is_zipfile(path):
+            return False
+        with zipfile.ZipFile(path) as zf:
+            names = set(zf.namelist())
+        return "xl/workbook.xml" in names
+    except OSError:
+        return False
+
+
+def _normalize_sheet_name(name: str) -> str:
+    cleaned = name.strip().lower()
+    cleaned = cleaned.replace(".txt", "")
+    for token in (" ", "-", ".", ",", ";"):
+        cleaned = cleaned.replace(token, "_")
+    while "__" in cleaned:
+        cleaned = cleaned.replace("__", "_")
+    return cleaned.strip("_")
+
+
+def _map_gtfs_sheet_name(name: str) -> str | None:
+    key = _normalize_sheet_name(name)
+    if key in ("routes", "route", "gtfs_routes"):
+        return "routes.txt"
+    if key in ("trips", "trip", "gtfs_trips"):
+        return "trips.txt"
+    if key in ("stop_times", "stoptimes", "stop_time", "gtfs_stop_times", "trip_stop", "tripstops"):
+        return "stop_times.txt"
+    if key in ("stops", "stop", "gtfs_stops"):
+        return "stops.txt"
+    return None
+
+
+def _extract_gtfs_from_xlsx(xlsx_path: str, tmp_dir: str) -> str | None:
+    try:
+        import pandas as pd
+    except Exception as exc:
+        LOGGER.warning("XLSX requires pandas/openpyxl: %s", exc)
+        return None
+
+    try:
+        sheets = pd.read_excel(xlsx_path, sheet_name=None, engine="openpyxl")
+    except Exception as exc:
+        LOGGER.warning("Unable to read XLSX: %s (%s)", xlsx_path, exc)
+        return None
+
+    needed = {"routes.txt", "trips.txt", "stop_times.txt", "stops.txt"}
+    extracted: dict[str, str] = {}
+    extract_dir = tempfile.mkdtemp(prefix="gtfs_xlsx_", dir=tmp_dir)
+    try:
+        for sheet_name, df in sheets.items():
+            mapped = _map_gtfs_sheet_name(sheet_name)
+            if not mapped or mapped in extracted:
+                continue
+            out_path = os.path.join(extract_dir, mapped)
+            df.to_csv(out_path, index=False)
+            extracted[mapped] = out_path
+        missing = sorted(needed - set(extracted))
+        if missing:
+            LOGGER.warning("XLSX missing GTFS sheets: %s", ", ".join(missing))
+            shutil.rmtree(extract_dir, ignore_errors=True)
+            return None
+        return extract_dir
+    except Exception as exc:
+        LOGGER.warning("Failed to extract XLSX sheets: %s (%s)", xlsx_path, exc)
+        shutil.rmtree(extract_dir, ignore_errors=True)
+        return None
+
+
 def _load_gtfs_dir(path: str, tmp_dir: str) -> str | None:
     if os.path.isdir(path):
         return path
-    if path.lower().endswith(".zip"):
+    if path.lower().endswith((".xlsx", ".xlsm", ".xltx", ".xltm")) or _is_xlsx_file(path):
+        extract_dir = _extract_gtfs_from_xlsx(path, tmp_dir)
+        if extract_dir:
+            return extract_dir
+    if path.lower().endswith(".zip") or _is_zip_file(path):
         extract_dir = tempfile.mkdtemp(prefix="gtfs_", dir=tmp_dir)
         extracted = _extract_gtfs_files(path, extract_dir)
         if not extracted:
@@ -878,6 +985,7 @@ def _extract_trips_from_gtfs_dir(
     spark: SparkSession,
     gtfs_dir: str,
     default_country: str | None = None,
+    force_night: bool = False,
 ) -> DataFrame | None:
     routes_path = os.path.join(gtfs_dir, "routes.txt")
     trips_path = os.path.join(gtfs_dir, "trips.txt")
@@ -892,10 +1000,23 @@ def _extract_trips_from_gtfs_dir(
     routes = _read_csv(
         spark,
         routes_path,
-        ["route_id", "route_type", "route_short_name", "route_long_name", "route_desc"],
+        [
+            "route_id",
+            "route_type",
+            "route_short_name",
+            "route_long_name",
+            "route_desc",
+            "distance",
+            "emissions",
+            "countries",
+        ],
     )
     if "route_desc" not in routes.columns:
         routes = routes.withColumn("route_desc", F.lit(None).cast(StringType()))
+    if "distance" not in routes.columns:
+        routes = routes.withColumn("distance", F.lit(None).cast(DoubleType()))
+    if "emissions" not in routes.columns:
+        routes = routes.withColumn("emissions", F.lit(None).cast(DoubleType()))
     trips = _read_csv(
         spark,
         trips_path,
@@ -919,7 +1040,15 @@ def _extract_trips_from_gtfs_dir(
     if not routes.columns or not trips.columns or not stop_times.columns or not stops.columns:
         return None
 
-    routes = routes.withColumn("route_type_int", F.col("route_type").cast(IntegerType()))
+    rt_raw = F.col("route_type").cast(StringType())
+    rt_clean = F.regexp_replace(F.trim(rt_raw), ",", ".")
+    routes = routes.withColumn(
+        "route_type_int",
+        F.when(
+            rt_clean.rlike(r"^-?\d+(\.\d+)?$"),
+            rt_clean.cast(DoubleType()).cast(IntegerType()),
+        ).otherwise(F.lit(None).cast(IntegerType())),
+    )
     allowed_train = list(_allowed_train_route_types())
     allowed_air = list(_allowed_air_route_types())
     routes = routes.withColumn(
@@ -947,9 +1076,27 @@ def _extract_trips_from_gtfs_dir(
         "train_type",
         F.when(F.col("transport_type") == F.lit("train"), F.col("route_type_int")).otherwise(F.lit(None)),
     )
-    routes = routes.select("route_id", "transport_type", "specificite", "train_type", "name_blob")
+    routes = routes.withColumn("distance_km", F.col("distance").cast(DoubleType()))
+    routes = routes.withColumn("co2_kg", F.col("emissions").cast(DoubleType()))
+    routes = routes.select(
+        "route_id",
+        "transport_type",
+        "specificite",
+        "train_type",
+        "name_blob",
+        "distance_km",
+        "co2_kg",
+    )
 
-    stop_times = stop_times.withColumn("stop_sequence", F.col("stop_sequence").cast(IntegerType()))
+    seq_raw = F.col("stop_sequence").cast(StringType())
+    seq_clean = F.regexp_replace(F.trim(seq_raw), ",", ".")
+    stop_times = stop_times.withColumn(
+        "stop_sequence",
+        F.when(
+            seq_clean.rlike(r"^-?\d+(\.\d+)?$"),
+            seq_clean.cast(DoubleType()).cast(IntegerType()),
+        ).otherwise(F.lit(None).cast(IntegerType())),
+    )
     stop_times = stop_times.filter(F.col("stop_sequence").isNotNull())
     win_first = Window.partitionBy("trip_id").orderBy(F.col("stop_sequence").asc())
     win_last = Window.partitionBy("trip_id").orderBy(F.col("stop_sequence").desc())
@@ -994,6 +1141,11 @@ def _extract_trips_from_gtfs_dir(
             F.lit(True),
         ).otherwise(F.lit(False)),
     )
+    if force_night:
+        trips = trips.withColumn(
+            "is_night",
+            F.when(F.col("transport_type") == F.lit("train"), F.lit(True)).otherwise(F.lit(False)),
+        )
     trips = trips.join(first_stop, "trip_id", "inner").join(last_stop, "trip_id", "inner")
 
     dep = stops.select(
@@ -1017,6 +1169,8 @@ def _extract_trips_from_gtfs_dir(
         "specificite",
         "train_type",
         "is_night",
+        "distance_km",
+        "co2_kg",
         "departure_stop_id",
         "arrival_stop_id",
         "departure_station",
@@ -1128,6 +1282,12 @@ def _filter_and_distance(df: DataFrame) -> DataFrame:
     valid_arr = _valid_coord_expr(F.col("arrival_lat"), F.col("arrival_lon"))
     df = df.filter(valid_dep & valid_arr)
 
+    if "distance_km" in df.columns:
+        df = df.withColumn("distance_km", F.col("distance_km").cast(DoubleType()))
+        df = df.filter(F.col("distance_km").isNotNull() & (F.col("distance_km") > 0))
+        df = df.filter(F.col("distance_km") >= F.lit(min_km))
+        return df
+
     dist_raw = _haversine_km_expr(
         F.col("departure_lat"),
         F.col("departure_lon"),
@@ -1191,6 +1351,12 @@ def _build_vehicle_dim(df: DataFrame) -> DataFrame:
         F.col("specificite"),
         F.col("train_type"),
     ).dropDuplicates()
+    vehicles = vehicles.withColumn(
+        "specificite",
+        F.when(F.col("specificite").isNull(), F.lit(None))
+        .when(F.length(F.col("specificite")) <= 256, F.col("specificite"))
+        .otherwise(F.substring(F.col("specificite"), 1, 256)),
+    )
     win = Window.partitionBy(F.lit(1)).orderBy("type_transport", "specificite", "train_type")
     vehicles = vehicles.withColumn("vehicule_id", F.row_number().over(win))
     return vehicles.select("vehicule_id", "type_transport", "specificite", "train_type")
@@ -1260,11 +1426,15 @@ def _build_trajet_fact(df: DataFrame, stations: DataFrame, vehicles: DataFrame) 
     co2_train = float(co2_train_raw) if co2_train_raw else DEFAULT_CO2_PER_KM_TRAIN
     co2_air = float(co2_air_raw) if co2_air_raw else DEFAULT_CO2_PER_KM_AIR
 
-    df = df.withColumn(
-        "co2_kg",
-        F.when(F.col("transport_type") == F.lit("train"), F.col("distance_km") * F.lit(co2_train))
-        .otherwise(F.col("distance_km") * F.lit(co2_air)),
-    )
+    computed_co2 = F.when(
+        F.col("transport_type") == F.lit("train"),
+        F.col("distance_km") * F.lit(co2_train),
+    ).otherwise(F.col("distance_km") * F.lit(co2_air))
+    if "co2_kg" in df.columns:
+        df = df.withColumn("co2_kg", F.col("co2_kg").cast(DoubleType()))
+        df = df.withColumn("co2_kg", F.when(F.col("co2_kg").isNull(), computed_co2).otherwise(F.col("co2_kg")))
+    else:
+        df = df.withColumn("co2_kg", computed_co2)
 
     df = df.withColumn("pair_a", F.least(F.col("departure_station_id"), F.col("arrival_station_id")))
     df = df.withColumn("pair_b", F.greatest(F.col("departure_station_id"), F.col("arrival_station_id")))
@@ -1515,11 +1685,22 @@ def run_stream_etl(argv: list[str] | None = None) -> None:
         snapshot_dir = os.environ.get(ETL_SNAPSHOT_DIR_ENV) or _default_snapshot_dir()
         snapshot_load_raw = os.environ.get(ETL_SNAPSHOT_LOAD_ENV)
         snapshot_ids = _parse_list_env(snapshot_load_raw)
-        snapshot_mode = len(snapshot_ids) > 0
+        snapshot_merge = _truthy_env(ETL_SNAPSHOT_MERGE_ENV, False)
+        snapshot_only = len(snapshot_ids) > 0 and not snapshot_merge
 
         merged: dict[str, str | None] = {}
-        if not snapshot_mode:
+        if not snapshot_only:
             inputs = _load_input_paths(argv, url_map, base_map)
+            xlsx_env = os.environ.get(GTFS_XLSX_URL_ENV)
+            if xlsx_env:
+                xlsx_items = _parse_list_env(xlsx_env)
+                if not xlsx_items and xlsx_env.strip():
+                    xlsx_items = [xlsx_env.strip()]
+                if xlsx_items:
+                    LOGGER.info("XLSX inputs: %s", ", ".join(xlsx_items))
+                    for item in xlsx_items:
+                        if item:
+                            inputs.append(item)
             # Ajout des GTFS dynamiques par country_code depuis un catalogue CSV
             catalog_url = (
                 os.environ.get("GTFS_CATALOG_URL")
@@ -1595,10 +1776,11 @@ def run_stream_etl(argv: list[str] | None = None) -> None:
         else:
             LOGGER.info("Snapshot load mode: %s", ",".join(snapshot_ids))
 
-        trips_frames: list[DataFrame] = []
+        snapshot_frames: list[DataFrame] = []
+        extracted_frames: list[DataFrame] = []
         gtfs_entries: set[str] = set()
         gtfs_zero: set[str] = set()
-        if snapshot_mode:
+        if snapshot_only or snapshot_merge:
             for sid in snapshot_ids:
                 path = sid
                 if not os.path.exists(path):
@@ -1607,21 +1789,30 @@ def run_stream_etl(argv: list[str] | None = None) -> None:
                 if not os.path.exists(trips_path):
                     LOGGER.warning("Snapshot introuvable: %s", trips_path)
                     continue
-                trips_frames.append(spark.read.parquet(trips_path))
-        else:
+                snapshot_frames.append(spark.read.parquet(trips_path))
+
+        if not snapshot_only:
             for entry, country_code in merged.items():
                 local_path = _resolve_local_path(entry, tmp_root)
                 if not local_path:
                     continue
 
+                source_is_xlsx = (
+                    local_path.lower().endswith((".xlsx", ".xlsm", ".xltx", ".xltm")) or _is_xlsx_file(local_path)
+                )
                 gtfs_dir = _load_gtfs_dir(local_path, tmp_root)
                 if gtfs_dir:
                     gtfs_entries.add(entry)
-                    gtfs_df = _extract_trips_from_gtfs_dir(spark, gtfs_dir, default_country=country_code)
+                    gtfs_df = _extract_trips_from_gtfs_dir(
+                        spark,
+                        gtfs_dir,
+                        default_country=country_code,
+                        force_night=source_is_xlsx,
+                    )
                     if gtfs_df is not None:
                         gtfs_df = gtfs_df.withColumn("_source", F.lit(entry))
                         gtfs_df = gtfs_df.withColumn("_country", F.lit(country_code))
-                        trips_frames.append(gtfs_df)
+                        extracted_frames.append(gtfs_df)
                     else:
                         LOGGER.info("GTFS feed ignore (aucun trip extrait): %s", entry)
                         gtfs_zero.add(entry)
@@ -1632,20 +1823,39 @@ def run_stream_etl(argv: list[str] | None = None) -> None:
                     if flights_df is not None:
                         flights_df = flights_df.withColumn("_source", F.lit(entry))
                         flights_df = flights_df.withColumn("_country", F.lit(country_code))
-                        trips_frames.append(flights_df)
+                        extracted_frames.append(flights_df)
                     else:
                         LOGGER.info("Flights feed ignore (aucun trip extrait): %s", entry)
                     continue
 
                 LOGGER.warning("Unsupported input type: %s", local_path)
 
-        if not trips_frames:
+        if not snapshot_frames and not extracted_frames:
             LOGGER.warning("No trips extracted.")
             return
 
-        trips_df = trips_frames[0]
-        for frame in trips_frames[1:]:
-            trips_df = trips_df.unionByName(frame, allowMissingColumns=True)
+        trips_df: DataFrame | None = None
+        if extracted_frames:
+            trips_df = extracted_frames[0]
+            for frame in extracted_frames[1:]:
+                trips_df = trips_df.unionByName(frame, allowMissingColumns=True)
+            trips_df = _filter_and_distance(trips_df)
+            if trips_df.limit(1).count() == 0 and not snapshot_frames:
+                LOGGER.warning("No trips left after filtering.")
+                return
+
+        if snapshot_frames:
+            snapshot_df = snapshot_frames[0]
+            for frame in snapshot_frames[1:]:
+                snapshot_df = snapshot_df.unionByName(frame, allowMissingColumns=True)
+            if trips_df is None:
+                trips_df = snapshot_df
+            else:
+                trips_df = trips_df.unionByName(snapshot_df, allowMissingColumns=True)
+
+        if trips_df is None:
+            LOGGER.warning("No trips left after filtering.")
+            return
 
         pre_counts: dict[tuple[str, str | None], int] = {}
         if "_source" in trips_df.columns:
@@ -1653,11 +1863,6 @@ def run_stream_etl(argv: list[str] | None = None) -> None:
                 key = (row["_source"], row["_country"])
                 pre_counts[key] = int(row["count"])
 
-        if not snapshot_mode:
-            trips_df = _filter_and_distance(trips_df)
-            if trips_df.limit(1).count() == 0:
-                LOGGER.warning("No trips left after filtering.")
-                return
         if pre_counts and "_source" in trips_df.columns:
             post_counts: dict[tuple[str, str | None], int] = {}
             for row in trips_df.groupBy("_source", "_country").count().collect():
