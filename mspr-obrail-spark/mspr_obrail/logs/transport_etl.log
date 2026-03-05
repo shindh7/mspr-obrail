@@ -1,0 +1,185 @@
+2026-03-05 08:11:39,360 | INFO | ETL log file: C:\2_EPSI\MSPR\ETL\ETL_DH\mspr-obrail-main\mspr-obrail-spark\mspr_obrail\logs\transport_etl.log
+2026-03-05 08:21:11,135 | INFO | ETL log file: C:\2_EPSI\MSPR\ETL\ETL_DH\mspr-obrail-main\mspr-obrail-spark\mspr_obrail\logs\transport_etl.log
+2026-03-05 08:23:17,406 | INFO | ETL log file: C:\2_EPSI\MSPR\ETL\ETL_DH\mspr-obrail-main\mspr-obrail-spark\mspr_obrail\logs\transport_etl.log
+2026-03-05 08:23:27,113 | INFO | GTFS ignorelist active (23 URLs).
+2026-03-05 08:23:27,113 | INFO | GTFS catalog countries: AT,BE,DE,DK,ES,FI,FR,GB,IT,NL,NO,PL,SE (max per country=3)
+2026-03-05 08:23:46,231 | INFO | ETL log file: C:\2_EPSI\MSPR\ETL\ETL_DH\mspr-obrail-main\mspr-obrail-spark\mspr_obrail\logs\transport_etl.log
+2026-03-05 08:23:54,315 | INFO | GTFS ignorelist active (23 URLs).
+2026-03-05 08:23:54,315 | INFO | GTFS catalog countries: AT,BE,DE,DK,ES,FI,FR,GB,IT,NL,NO,PL,SE (max per country=5)
+2026-03-05 08:24:34,964 | INFO | GTFS catalog: 227 URLs ignorees (non GTFS ou vides).
+2026-03-05 08:24:34,964 | INFO | GTFS catalog: 7 URLs invalides ignorees.
+2026-03-05 08:24:34,964 | INFO | GTFS catalog: sélection par pays -> AT:5, BE:5, DE:5, DK:2, ES:5, FI:5, FR:5, GB:5, IT:5, NL:0, NO:3, PL:5, SE:4
+2026-03-05 08:24:34,964 | INFO | GTFS sources statiques: CZ,DE,FI,FR,GB
+2026-03-05 08:24:34,964 | INFO | GTFS ignorelist: 23 URLs ignores.
+2026-03-05 08:24:40,765 | INFO | GTFS: aucune route train/avion apres filtrage.
+2026-03-05 08:24:40,765 | INFO | GTFS feed ignore (aucun trip extrait): https://files.mobilitydatabase.org/mdb-658/latest.zip
+2026-03-05 08:24:42,436 | INFO | GTFS: aucune route train/avion apres filtrage.
+2026-03-05 08:24:42,436 | INFO | GTFS feed ignore (aucun trip extrait): https://files.mobilitydatabase.org/mdb-659/latest.zip
+2026-03-05 08:26:11,103 | INFO | GTFS: aucune route train/avion apres filtrage.
+2026-03-05 08:26:11,103 | INFO | GTFS feed ignore (aucun trip extrait): https://files.mobilitydatabase.org/mdb-791/latest.zip
+2026-03-05 08:26:12,784 | INFO | GTFS: aucune route train/avion apres filtrage.
+2026-03-05 08:26:12,784 | INFO | GTFS feed ignore (aucun trip extrait): https://files.mobilitydatabase.org/mdb-792/latest.zip
+2026-03-05 08:26:21,191 | WARNING | Invalid ZIP: C:\Users\lmasutti\AppData\Local\Temp\transport_etl_ohnuf19a\latest.zip
+2026-03-05 08:26:21,193 | WARNING | Unsupported input type: C:\Users\lmasutti\AppData\Local\Temp\transport_etl_ohnuf19a\latest.zip
+2026-03-05 08:26:23,935 | INFO | GTFS: aucune route train/avion apres filtrage.
+2026-03-05 08:26:23,935 | INFO | GTFS feed ignore (aucun trip extrait): https://files.mobilitydatabase.org/mdb-867/latest.zip
+2026-03-05 08:26:26,357 | INFO | GTFS: aucune route train/avion apres filtrage.
+2026-03-05 08:26:26,357 | INFO | GTFS feed ignore (aucun trip extrait): https://files.mobilitydatabase.org/mdb-868/latest.zip
+2026-03-05 08:26:27,597 | INFO | GTFS: aucune route train/avion apres filtrage.
+2026-03-05 08:26:27,597 | INFO | GTFS feed ignore (aucun trip extrait): https://files.mobilitydatabase.org/mdb-891/latest.zip
+2026-03-05 08:26:33,893 | INFO | GTFS: aucune route train/avion apres filtrage.
+2026-03-05 08:26:33,893 | INFO | GTFS feed ignore (aucun trip extrait): https://files.mobilitydatabase.org/mdb-981/latest.zip
+2026-03-05 08:26:45,160 | INFO | GTFS: aucune route train/avion apres filtrage.
+2026-03-05 08:26:45,162 | INFO | GTFS feed ignore (aucun trip extrait): https://files.mobilitydatabase.org/mdb-982/latest.zip
+2026-03-05 08:30:08,425 | WARNING | Failed to write C:\Users\lmasutti\AppData\Local\Temp\transport_etl_ohnuf19a\latest.zip (('Connection broken: IncompleteRead(8552419 bytes read, 82582947 more expected)', IncompleteRead(8552419 bytes read, 82582947 more expected)))
+2026-03-05 08:31:58,429 | INFO | ETL log file: C:\2_EPSI\MSPR\ETL\ETL_DH\mspr-obrail-main\mspr-obrail-spark\mspr_obrail\logs\transport_etl.log
+2026-03-05 08:32:07,285 | INFO | GTFS ignorelist active (23 URLs).
+2026-03-05 08:32:07,285 | INFO | GTFS catalog countries: AT,BE,DE,DK,ES,FI,FR,GB,IT,NL,NO,PL,SE (max per country=5)
+2026-03-05 08:32:45,979 | INFO | GTFS catalog: 227 URLs ignorees (non GTFS ou vides).
+2026-03-05 08:32:45,979 | INFO | GTFS catalog: 7 URLs invalides ignorees.
+2026-03-05 08:32:45,979 | INFO | GTFS catalog: sélection par pays -> AT:5, BE:5, DE:5, DK:2, ES:5, FI:5, FR:5, GB:5, IT:5, NL:0, NO:3, PL:5, SE:4
+2026-03-05 08:32:45,979 | INFO | GTFS sources statiques: CZ,DE,FI,FR,GB
+2026-03-05 08:32:45,979 | INFO | GTFS ignorelist: 23 URLs ignores.
+2026-03-05 08:32:51,400 | INFO | GTFS: aucune route train/avion apres filtrage.
+2026-03-05 08:32:51,402 | INFO | GTFS feed ignore (aucun trip extrait): https://files.mobilitydatabase.org/mdb-658/latest.zip
+2026-03-05 08:32:52,643 | INFO | GTFS: aucune route train/avion apres filtrage.
+2026-03-05 08:32:52,645 | INFO | GTFS feed ignore (aucun trip extrait): https://files.mobilitydatabase.org/mdb-659/latest.zip
+2026-03-05 08:35:02,897 | INFO | GTFS: aucune route train/avion apres filtrage.
+2026-03-05 08:35:02,899 | INFO | GTFS feed ignore (aucun trip extrait): https://files.mobilitydatabase.org/mdb-791/latest.zip
+2026-03-05 08:35:05,256 | INFO | GTFS: aucune route train/avion apres filtrage.
+2026-03-05 08:35:05,256 | INFO | GTFS feed ignore (aucun trip extrait): https://files.mobilitydatabase.org/mdb-792/latest.zip
+2026-03-05 08:35:24,673 | WARNING | Invalid ZIP: C:\Users\lmasutti\AppData\Local\Temp\transport_etl_rcu75ppn\latest.zip
+2026-03-05 08:35:24,676 | WARNING | Unsupported input type: C:\Users\lmasutti\AppData\Local\Temp\transport_etl_rcu75ppn\latest.zip
+2026-03-05 08:36:16,284 | WARNING | Download failed (retry 1/2): https://files.mobilitydatabase.org/mdb-867/latest.zip (('Connection broken: IncompleteRead(819200 bytes read, 3129620 more expected)', IncompleteRead(819200 bytes read, 3129620 more expected)))
+2026-03-05 08:36:34,352 | INFO | GTFS: aucune route train/avion apres filtrage.
+2026-03-05 08:36:34,354 | INFO | GTFS feed ignore (aucun trip extrait): https://files.mobilitydatabase.org/mdb-867/latest.zip
+2026-03-05 08:36:50,671 | INFO | GTFS: aucune route train/avion apres filtrage.
+2026-03-05 08:36:50,671 | INFO | GTFS feed ignore (aucun trip extrait): https://files.mobilitydatabase.org/mdb-868/latest.zip
+2026-03-05 08:36:52,668 | INFO | GTFS: aucune route train/avion apres filtrage.
+2026-03-05 08:36:52,670 | INFO | GTFS feed ignore (aucun trip extrait): https://files.mobilitydatabase.org/mdb-891/latest.zip
+2026-03-05 08:37:02,739 | INFO | GTFS: aucune route train/avion apres filtrage.
+2026-03-05 08:37:02,739 | INFO | GTFS feed ignore (aucun trip extrait): https://files.mobilitydatabase.org/mdb-981/latest.zip
+2026-03-05 08:37:15,304 | INFO | GTFS: aucune route train/avion apres filtrage.
+2026-03-05 08:37:15,304 | INFO | GTFS feed ignore (aucun trip extrait): https://files.mobilitydatabase.org/mdb-982/latest.zip
+2026-03-05 08:55:48,034 | WARNING | Download failed (retry 1/2): https://files.mobilitydatabase.org/mdb-1077/latest.zip (('Connection broken: IncompleteRead(179797987 bytes read, 40793129 more expected)', IncompleteRead(179797987 bytes read, 40793129 more expected)))
+2026-03-05 08:57:55,640 | INFO | GTFS: aucune route train/avion apres filtrage.
+2026-03-05 08:57:55,640 | INFO | GTFS feed ignore (aucun trip extrait): https://files.mobilitydatabase.org/mdb-1088/latest.zip
+2026-03-05 08:58:43,152 | WARNING | Unsupported input type: C:\Users\lmasutti\AppData\Local\Temp\transport_etl_rcu75ppn\tripUpdates.pb
+2026-03-05 08:58:47,957 | WARNING | Unsupported input type: C:\Users\lmasutti\AppData\Local\Temp\transport_etl_rcu75ppn\alerts.pb
+2026-03-05 08:58:50,826 | INFO | GTFS: aucune route train/avion apres filtrage.
+2026-03-05 08:58:50,827 | INFO | GTFS feed ignore (aucun trip extrait): https://files.mobilitydatabase.org/mdb-1928/latest.zip
+2026-03-05 09:02:26,577 | WARNING | Download failed (retry 1/2): https://files.mobilitydatabase.org/mdb-2661/latest.zip (('Connection broken: IncompleteRead(10895360 bytes read, 40585578 more expected)', IncompleteRead(10895360 bytes read, 40585578 more expected)))
+2026-03-05 09:02:27,915 | WARNING | Download failed (retry 2/2): https://files.mobilitydatabase.org/mdb-2661/latest.zip (HTTPSConnectionPool(host='files.mobilitydatabase.org', port=443): Max retries exceeded with url: /mdb-2661/latest.zip (Caused by NameResolutionError("HTTPSConnection(host='files.mobilitydatabase.org', port=443): Failed to resolve 'files.mobilitydatabase.org' ([Errno 11001] getaddrinfo failed)")))
+2026-03-05 09:02:29,926 | WARNING | Download failed: https://files.mobilitydatabase.org/mdb-2661/latest.zip (HTTPSConnectionPool(host='files.mobilitydatabase.org', port=443): Max retries exceeded with url: /mdb-2661/latest.zip (Caused by NameResolutionError("HTTPSConnection(host='files.mobilitydatabase.org', port=443): Failed to resolve 'files.mobilitydatabase.org' ([Errno 11001] getaddrinfo failed)")))
+2026-03-05 09:02:29,926 | WARNING | Download failed (retry 1/2): https://files.mobilitydatabase.org/tld-7891/latest.zip (HTTPSConnectionPool(host='files.mobilitydatabase.org', port=443): Max retries exceeded with url: /tld-7891/latest.zip (Caused by NameResolutionError("HTTPSConnection(host='files.mobilitydatabase.org', port=443): Failed to resolve 'files.mobilitydatabase.org' ([Errno 11001] getaddrinfo failed)")))
+2026-03-05 09:02:30,935 | WARNING | Download failed (retry 2/2): https://files.mobilitydatabase.org/tld-7891/latest.zip (HTTPSConnectionPool(host='files.mobilitydatabase.org', port=443): Max retries exceeded with url: /tld-7891/latest.zip (Caused by NameResolutionError("HTTPSConnection(host='files.mobilitydatabase.org', port=443): Failed to resolve 'files.mobilitydatabase.org' ([Errno 11001] getaddrinfo failed)")))
+2026-03-05 09:07:41,423 | WARNING | Download failed: https://files.mobilitydatabase.org/tld-7891/latest.zip (HTTPSConnectionPool(host='files.mobilitydatabase.org', port=443): Max retries exceeded with url: /tld-7891/latest.zip (Caused by NameResolutionError("HTTPSConnection(host='files.mobilitydatabase.org', port=443): Failed to resolve 'files.mobilitydatabase.org' ([Errno 11001] getaddrinfo failed)")))
+2026-03-05 09:07:41,465 | WARNING | Download failed (retry 1/2): https://eu.ftp.opendatasoft.com/sncf/plandata/Export_OpenData_SNCF_GTFS_NewTripId.zip (HTTPSConnectionPool(host='eu.ftp.opendatasoft.com', port=443): Max retries exceeded with url: /sncf/plandata/Export_OpenData_SNCF_GTFS_NewTripId.zip (Caused by NameResolutionError("HTTPSConnection(host='eu.ftp.opendatasoft.com', port=443): Failed to resolve 'eu.ftp.opendatasoft.com' ([Errno 11001] getaddrinfo failed)")))
+2026-03-05 09:07:42,479 | WARNING | Download failed (retry 2/2): https://eu.ftp.opendatasoft.com/sncf/plandata/Export_OpenData_SNCF_GTFS_NewTripId.zip (HTTPSConnectionPool(host='eu.ftp.opendatasoft.com', port=443): Max retries exceeded with url: /sncf/plandata/Export_OpenData_SNCF_GTFS_NewTripId.zip (Caused by NameResolutionError("HTTPSConnection(host='eu.ftp.opendatasoft.com', port=443): Failed to resolve 'eu.ftp.opendatasoft.com' ([Errno 11001] getaddrinfo failed)")))
+2026-03-05 09:07:44,506 | WARNING | Download failed: https://eu.ftp.opendatasoft.com/sncf/plandata/Export_OpenData_SNCF_GTFS_NewTripId.zip (HTTPSConnectionPool(host='eu.ftp.opendatasoft.com', port=443): Max retries exceeded with url: /sncf/plandata/Export_OpenData_SNCF_GTFS_NewTripId.zip (Caused by NameResolutionError("HTTPSConnection(host='eu.ftp.opendatasoft.com', port=443): Failed to resolve 'eu.ftp.opendatasoft.com' ([Errno 11001] getaddrinfo failed)")))
+2026-03-05 09:07:44,509 | WARNING | Download failed (retry 1/2): https://openmobilitydata-data.s3.us-west-1.amazonaws.com/public/feeds/association-of-train-operating-companies/284/20210423/gtfs.zip (HTTPSConnectionPool(host='openmobilitydata-data.s3.us-west-1.amazonaws.com', port=443): Max retries exceeded with url: /public/feeds/association-of-train-operating-companies/284/20210423/gtfs.zip (Caused by NameResolutionError("HTTPSConnection(host='openmobilitydata-data.s3.us-west-1.amazonaws.com', port=443): Failed to resolve 'openmobilitydata-data.s3.us-west-1.amazonaws.com' ([Errno 11001] getaddrinfo failed)")))
+2026-03-05 09:07:45,520 | WARNING | Download failed (retry 2/2): https://openmobilitydata-data.s3.us-west-1.amazonaws.com/public/feeds/association-of-train-operating-companies/284/20210423/gtfs.zip (HTTPSConnectionPool(host='openmobilitydata-data.s3.us-west-1.amazonaws.com', port=443): Max retries exceeded with url: /public/feeds/association-of-train-operating-companies/284/20210423/gtfs.zip (Caused by NameResolutionError("HTTPSConnection(host='openmobilitydata-data.s3.us-west-1.amazonaws.com', port=443): Failed to resolve 'openmobilitydata-data.s3.us-west-1.amazonaws.com' ([Errno 11001] getaddrinfo failed)")))
+2026-03-05 09:07:47,527 | WARNING | Download failed: https://openmobilitydata-data.s3.us-west-1.amazonaws.com/public/feeds/association-of-train-operating-companies/284/20210423/gtfs.zip (HTTPSConnectionPool(host='openmobilitydata-data.s3.us-west-1.amazonaws.com', port=443): Max retries exceeded with url: /public/feeds/association-of-train-operating-companies/284/20210423/gtfs.zip (Caused by NameResolutionError("HTTPSConnection(host='openmobilitydata-data.s3.us-west-1.amazonaws.com', port=443): Failed to resolve 'openmobilitydata-data.s3.us-west-1.amazonaws.com' ([Errno 11001] getaddrinfo failed)")))
+2026-03-05 09:07:47,529 | WARNING | Download failed (retry 1/2): https://infopalvelut.storage.hsldev.com/gtfs/hsl.zip (HTTPSConnectionPool(host='infopalvelut.storage.hsldev.com', port=443): Max retries exceeded with url: /gtfs/hsl.zip (Caused by NameResolutionError("HTTPSConnection(host='infopalvelut.storage.hsldev.com', port=443): Failed to resolve 'infopalvelut.storage.hsldev.com' ([Errno 11001] getaddrinfo failed)")))
+2026-03-05 09:07:48,544 | WARNING | Download failed (retry 2/2): https://infopalvelut.storage.hsldev.com/gtfs/hsl.zip (HTTPSConnectionPool(host='infopalvelut.storage.hsldev.com', port=443): Max retries exceeded with url: /gtfs/hsl.zip (Caused by NameResolutionError("HTTPSConnection(host='infopalvelut.storage.hsldev.com', port=443): Failed to resolve 'infopalvelut.storage.hsldev.com' ([Errno 11001] getaddrinfo failed)")))
+2026-03-05 09:07:50,577 | WARNING | Download failed: https://infopalvelut.storage.hsldev.com/gtfs/hsl.zip (HTTPSConnectionPool(host='infopalvelut.storage.hsldev.com', port=443): Max retries exceeded with url: /gtfs/hsl.zip (Caused by NameResolutionError("HTTPSConnection(host='infopalvelut.storage.hsldev.com', port=443): Failed to resolve 'infopalvelut.storage.hsldev.com' ([Errno 11001] getaddrinfo failed)")))
+2026-03-05 09:07:50,592 | WARNING | Download failed (retry 1/2): https://download.gtfs.de/germany/fv_free/latest.zip (HTTPSConnectionPool(host='download.gtfs.de', port=443): Max retries exceeded with url: /germany/fv_free/latest.zip (Caused by NameResolutionError("HTTPSConnection(host='download.gtfs.de', port=443): Failed to resolve 'download.gtfs.de' ([Errno 11001] getaddrinfo failed)")))
+2026-03-05 09:07:51,694 | WARNING | Download failed (retry 2/2): https://download.gtfs.de/germany/fv_free/latest.zip (HTTPSConnectionPool(host='download.gtfs.de', port=443): Max retries exceeded with url: /germany/fv_free/latest.zip (Caused by NameResolutionError("HTTPSConnection(host='download.gtfs.de', port=443): Failed to resolve 'download.gtfs.de' ([Errno 11001] getaddrinfo failed)")))
+2026-03-05 09:07:53,754 | WARNING | Download failed: https://download.gtfs.de/germany/fv_free/latest.zip (HTTPSConnectionPool(host='download.gtfs.de', port=443): Max retries exceeded with url: /germany/fv_free/latest.zip (Caused by NameResolutionError("HTTPSConnection(host='download.gtfs.de', port=443): Failed to resolve 'download.gtfs.de' ([Errno 11001] getaddrinfo failed)")))
+2026-03-05 09:07:53,780 | WARNING | Download failed (retry 1/2): https://download.gtfs.de/germany/rv_free/latest.zip (HTTPSConnectionPool(host='download.gtfs.de', port=443): Max retries exceeded with url: /germany/rv_free/latest.zip (Caused by NameResolutionError("HTTPSConnection(host='download.gtfs.de', port=443): Failed to resolve 'download.gtfs.de' ([Errno 11001] getaddrinfo failed)")))
+2026-03-05 09:07:54,806 | WARNING | Download failed (retry 2/2): https://download.gtfs.de/germany/rv_free/latest.zip (HTTPSConnectionPool(host='download.gtfs.de', port=443): Max retries exceeded with url: /germany/rv_free/latest.zip (Caused by NameResolutionError("HTTPSConnection(host='download.gtfs.de', port=443): Failed to resolve 'download.gtfs.de' ([Errno 11001] getaddrinfo failed)")))
+2026-03-05 09:12:45,807 | INFO | ETL log file: C:\2_EPSI\MSPR\ETL\ETL_DH\mspr-obrail-main\mspr-obrail-spark\mspr_obrail\logs\transport_etl.log
+2026-03-05 09:12:56,177 | INFO | GTFS ignorelist active (23 URLs).
+2026-03-05 09:12:56,177 | INFO | GTFS catalog countries: AT,BE,DE,DK,ES,FI,FR,GB,IT,NL,NO,PL,SE (max per country=5)
+2026-03-05 09:13:30,513 | INFO | GTFS catalog: 227 URLs ignorees (non GTFS ou vides).
+2026-03-05 09:13:30,513 | INFO | GTFS catalog: 7 URLs invalides ignorees.
+2026-03-05 09:13:30,513 | INFO | GTFS catalog: sélection par pays -> AT:5, BE:5, DE:5, DK:2, ES:5, FI:5, FR:5, GB:5, IT:5, NL:0, NO:3, PL:5, SE:4
+2026-03-05 09:13:30,513 | INFO | GTFS sources statiques: CZ,DE,FI,FR,GB
+2026-03-05 09:13:30,513 | INFO | GTFS ignorelist: 23 URLs ignores.
+2026-03-05 09:13:36,955 | INFO | GTFS: aucune route train/avion apres filtrage.
+2026-03-05 09:13:36,955 | INFO | GTFS feed ignore (aucun trip extrait): https://files.mobilitydatabase.org/mdb-658/latest.zip
+2026-03-05 09:13:38,661 | INFO | GTFS: aucune route train/avion apres filtrage.
+2026-03-05 09:13:38,663 | INFO | GTFS feed ignore (aucun trip extrait): https://files.mobilitydatabase.org/mdb-659/latest.zip
+2026-03-05 09:14:49,770 | INFO | GTFS: aucune route train/avion apres filtrage.
+2026-03-05 09:14:49,770 | INFO | GTFS feed ignore (aucun trip extrait): https://files.mobilitydatabase.org/mdb-791/latest.zip
+2026-03-05 09:14:51,652 | INFO | GTFS: aucune route train/avion apres filtrage.
+2026-03-05 09:14:51,653 | INFO | GTFS feed ignore (aucun trip extrait): https://files.mobilitydatabase.org/mdb-792/latest.zip
+2026-03-05 09:14:59,109 | WARNING | Invalid ZIP: C:\Users\lmasutti\AppData\Local\Temp\transport_etl_ysujxjzs\latest.zip
+2026-03-05 09:14:59,109 | WARNING | Unsupported input type: C:\Users\lmasutti\AppData\Local\Temp\transport_etl_ysujxjzs\latest.zip
+2026-03-05 09:15:01,851 | INFO | GTFS: aucune route train/avion apres filtrage.
+2026-03-05 09:15:01,851 | INFO | GTFS feed ignore (aucun trip extrait): https://files.mobilitydatabase.org/mdb-867/latest.zip
+2026-03-05 09:15:04,010 | INFO | GTFS: aucune route train/avion apres filtrage.
+2026-03-05 09:15:04,010 | INFO | GTFS feed ignore (aucun trip extrait): https://files.mobilitydatabase.org/mdb-868/latest.zip
+2026-03-05 09:15:05,400 | INFO | GTFS: aucune route train/avion apres filtrage.
+2026-03-05 09:15:05,400 | INFO | GTFS feed ignore (aucun trip extrait): https://files.mobilitydatabase.org/mdb-891/latest.zip
+2026-03-05 09:15:08,227 | INFO | GTFS: aucune route train/avion apres filtrage.
+2026-03-05 09:15:08,227 | INFO | GTFS feed ignore (aucun trip extrait): https://files.mobilitydatabase.org/mdb-981/latest.zip
+2026-03-05 09:15:11,471 | INFO | GTFS: aucune route train/avion apres filtrage.
+2026-03-05 09:15:11,493 | INFO | GTFS feed ignore (aucun trip extrait): https://files.mobilitydatabase.org/mdb-982/latest.zip
+2026-03-05 09:16:39,410 | INFO | GTFS: aucune route train/avion apres filtrage.
+2026-03-05 09:16:39,410 | INFO | GTFS feed ignore (aucun trip extrait): https://files.mobilitydatabase.org/mdb-1088/latest.zip
+2026-03-05 09:17:20,915 | WARNING | Unsupported input type: C:\Users\lmasutti\AppData\Local\Temp\transport_etl_ysujxjzs\tripUpdates.pb
+2026-03-05 09:17:25,214 | WARNING | Unsupported input type: C:\Users\lmasutti\AppData\Local\Temp\transport_etl_ysujxjzs\alerts.pb
+2026-03-05 09:17:28,455 | INFO | GTFS: aucune route train/avion apres filtrage.
+2026-03-05 09:17:28,455 | INFO | GTFS feed ignore (aucun trip extrait): https://files.mobilitydatabase.org/mdb-1928/latest.zip
+2026-03-05 09:17:42,271 | INFO | GTFS: aucune route train/avion apres filtrage.
+2026-03-05 09:17:42,271 | INFO | GTFS feed ignore (aucun trip extrait): https://files.mobilitydatabase.org/tld-7891/latest.zip
+2026-03-05 09:29:26,964 | INFO | Feed stats: https://files.mobilitydatabase.org/mdb-686/latest.zip country=BE extracted=39752 after_filter=8598
+2026-03-05 09:29:26,970 | INFO | Feed stats: https://files.mobilitydatabase.org/mdb-768/latest.zip country=DE extracted=4786 after_filter=3996
+2026-03-05 09:29:26,970 | INFO | Feed stats: https://files.mobilitydatabase.org/mdb-769/latest.zip country=DE extracted=3322 after_filter=1151
+2026-03-05 09:29:26,970 | INFO | Feed stats: https://files.mobilitydatabase.org/mdb-770/latest.zip country=DE extracted=5402 after_filter=1544
+2026-03-05 09:29:26,970 | INFO | Feed stats: https://files.mobilitydatabase.org/mdb-771/latest.zip country=DE extracted=4128 after_filter=364
+2026-03-05 09:29:26,972 | INFO | Feed stats: https://files.mobilitydatabase.org/mdb-772/latest.zip country=DE extracted=2537 after_filter=497
+2026-03-05 09:29:26,972 | INFO | Feed stats: https://files.mobilitydatabase.org/mdb-790/latest.zip country=ES extracted=4584 after_filter=3273
+2026-03-05 09:29:26,972 | INFO | Feed stats: https://files.mobilitydatabase.org/mdb-840/latest.zip country=IT extracted=1664 after_filter=239
+2026-03-05 09:29:26,972 | INFO | Feed stats: https://files.mobilitydatabase.org/mdb-855/latest.zip country=IT extracted=3585 after_filter=223
+2026-03-05 09:29:26,972 | INFO | Feed stats: https://files.mobilitydatabase.org/mdb-1075/latest.zip country=DK extracted=1276 after_filter=514
+2026-03-05 09:29:26,972 | INFO | Feed stats: https://files.mobilitydatabase.org/mdb-1077/latest.zip country=AT extracted=32841 after_filter=8578
+2026-03-05 09:29:26,972 | INFO | Feed stats: https://files.mobilitydatabase.org/mdb-1091/latest.zip country=BE extracted=2655 after_filter=76
+2026-03-05 09:29:26,972 | INFO | Feed stats: https://files.mobilitydatabase.org/mdb-1292/latest.zip country=DK extracted=24825 after_filter=2803
+2026-03-05 09:29:26,972 | INFO | Feed stats: https://files.mobilitydatabase.org/mdb-1311/latest.zip country=GB extracted=176591 after_filter=29103
+2026-03-05 09:29:26,972 | INFO | Feed stats: https://files.mobilitydatabase.org/mdb-1321/latest.zip country=SE extracted=13128 after_filter=3387
+2026-03-05 09:29:26,972 | INFO | Feed stats: https://files.mobilitydatabase.org/mdb-2661/latest.zip country=SE extracted=37414 after_filter=13917
+2026-03-05 09:29:26,972 | INFO | Feed stats: https://eu.ftp.opendatasoft.com/sncf/plandata/Export_OpenData_SNCF_GTFS_NewTripId.zip country=FR extracted=47702 after_filter=21600
+2026-03-05 09:29:26,972 | INFO | Feed stats: https://openmobilitydata-data.s3.us-west-1.amazonaws.com/public/feeds/association-of-train-operating-companies/284/20210423/gtfs.zip country=GB extracted=176591 after_filter=29103
+2026-03-05 09:29:26,977 | INFO | Feed stats: https://infopalvelut.storage.hsldev.com/gtfs/hsl.zip country=FI extracted=23540 after_filter=0
+2026-03-05 09:29:26,977 | INFO | Feed stats: https://download.gtfs.de/germany/fv_free/latest.zip country=DE extracted=4786 after_filter=3996
+2026-03-05 09:29:26,978 | INFO | Feed stats: https://download.gtfs.de/germany/rv_free/latest.zip country=DE extracted=85799 after_filter=6505
+2026-03-05 09:29:26,978 | INFO | Feed stats: https://data.pid.cz/PID_GTFS.zip country=CZ extracted=5218 after_filter=0
+2026-03-05 09:33:12,358 | INFO | Snapshot ecrit: C:\2_EPSI\MSPR\ETL\ETL_DH\mspr-obrail-main\mspr-obrail-spark\mspr_obrail\data\snapshots\run_001
+2026-03-05 09:46:47,099 | INFO | Transport ETL complete.
+2026-03-05 09:46:47,123 | INFO | GTFS ignorelist mis a jour (37 URLs).
+2026-03-05 10:23:32,890 | INFO | ETL log file: C:\2_EPSI\MSPR\ETL\ETL_DH\mspr-obrail-main\mspr-obrail-spark\mspr_obrail\logs\transport_etl.log
+2026-03-05 10:24:08,718 | INFO | GTFS ignorelist active (37 URLs).
+2026-03-05 10:24:08,718 | INFO | GTFS catalog countries: AT,BE,DE,DK,ES,FI,FR,GB,IT,NL,NO,PL,SE (max per country=5)
+2026-03-05 10:24:42,719 | INFO | GTFS catalog: 227 URLs ignorees (non GTFS ou vides).
+2026-03-05 10:24:42,719 | INFO | GTFS catalog: 7 URLs invalides ignorees.
+2026-03-05 10:24:42,719 | INFO | GTFS catalog: sélection par pays -> AT:5, BE:5, DE:5, DK:2, ES:5, FI:5, FR:5, GB:5, IT:5, NL:0, NO:3, PL:5, SE:4
+2026-03-05 10:24:42,722 | INFO | GTFS sources statiques: CZ,DE,FI,FR,GB
+2026-03-05 10:24:42,722 | INFO | GTFS ignorelist: 37 URLs ignores.
+2026-03-05 10:25:48,777 | WARNING | Invalid ZIP: C:\Users\lmasutti\AppData\Local\Temp\transport_etl_q6r8z_ms\latest.zip
+2026-03-05 10:25:48,777 | WARNING | Unsupported input type: C:\Users\lmasutti\AppData\Local\Temp\transport_etl_q6r8z_ms\latest.zip
+2026-03-05 10:27:20,174 | WARNING | Unsupported input type: C:\Users\lmasutti\AppData\Local\Temp\transport_etl_q6r8z_ms\tripUpdates.pb
+2026-03-05 10:27:22,293 | WARNING | Unsupported input type: C:\Users\lmasutti\AppData\Local\Temp\transport_etl_q6r8z_ms\alerts.pb
+2026-03-05 10:35:56,797 | INFO | Feed stats: https://files.mobilitydatabase.org/mdb-686/latest.zip country=BE extracted=39752 after_filter=8598
+2026-03-05 10:35:56,798 | INFO | Feed stats: https://files.mobilitydatabase.org/mdb-768/latest.zip country=DE extracted=4786 after_filter=3996
+2026-03-05 10:35:56,798 | INFO | Feed stats: https://files.mobilitydatabase.org/mdb-769/latest.zip country=DE extracted=3322 after_filter=1151
+2026-03-05 10:35:56,799 | INFO | Feed stats: https://files.mobilitydatabase.org/mdb-770/latest.zip country=DE extracted=5402 after_filter=1544
+2026-03-05 10:35:56,799 | INFO | Feed stats: https://files.mobilitydatabase.org/mdb-771/latest.zip country=DE extracted=4128 after_filter=364
+2026-03-05 10:35:56,799 | INFO | Feed stats: https://files.mobilitydatabase.org/mdb-772/latest.zip country=DE extracted=2537 after_filter=497
+2026-03-05 10:35:56,799 | INFO | Feed stats: https://files.mobilitydatabase.org/mdb-790/latest.zip country=ES extracted=4584 after_filter=3273
+2026-03-05 10:35:56,799 | INFO | Feed stats: https://files.mobilitydatabase.org/mdb-840/latest.zip country=IT extracted=1664 after_filter=239
+2026-03-05 10:35:56,800 | INFO | Feed stats: https://files.mobilitydatabase.org/mdb-855/latest.zip country=IT extracted=3585 after_filter=223
+2026-03-05 10:35:56,800 | INFO | Feed stats: https://files.mobilitydatabase.org/mdb-1075/latest.zip country=DK extracted=1276 after_filter=514
+2026-03-05 10:35:56,800 | INFO | Feed stats: https://files.mobilitydatabase.org/mdb-1077/latest.zip country=AT extracted=32841 after_filter=8578
+2026-03-05 10:35:56,800 | INFO | Feed stats: https://files.mobilitydatabase.org/mdb-1091/latest.zip country=BE extracted=2655 after_filter=76
+2026-03-05 10:35:56,800 | INFO | Feed stats: https://files.mobilitydatabase.org/mdb-1292/latest.zip country=DK extracted=24825 after_filter=2803
+2026-03-05 10:35:56,800 | INFO | Feed stats: https://files.mobilitydatabase.org/mdb-1311/latest.zip country=GB extracted=176591 after_filter=29103
+2026-03-05 10:35:56,800 | INFO | Feed stats: https://files.mobilitydatabase.org/mdb-1321/latest.zip country=SE extracted=13128 after_filter=3387
+2026-03-05 10:35:56,802 | INFO | Feed stats: https://files.mobilitydatabase.org/mdb-2661/latest.zip country=SE extracted=37414 after_filter=13917
+2026-03-05 10:35:56,802 | INFO | Feed stats: https://eu.ftp.opendatasoft.com/sncf/plandata/Export_OpenData_SNCF_GTFS_NewTripId.zip country=FR extracted=47702 after_filter=21600
+2026-03-05 10:35:56,802 | INFO | Feed stats: https://openmobilitydata-data.s3.us-west-1.amazonaws.com/public/feeds/association-of-train-operating-companies/284/20210423/gtfs.zip country=GB extracted=176591 after_filter=29103
+2026-03-05 10:35:56,802 | INFO | Feed stats: https://download.gtfs.de/germany/fv_free/latest.zip country=DE extracted=4786 after_filter=3996
+2026-03-05 10:35:56,802 | INFO | Feed stats: https://download.gtfs.de/germany/rv_free/latest.zip country=DE extracted=85799 after_filter=6505
+2026-03-05 10:38:41,441 | INFO | Snapshot ecrit: C:\2_EPSI\MSPR\ETL\ETL_DH\mspr-obrail-main\mspr-obrail-spark\mspr_obrail\data\snapshots\run_001
+2026-03-05 10:49:22,817 | INFO | Transport ETL complete.
