@@ -79,6 +79,9 @@ GTFS_SOURCES = [
     },
 ]
 
+
+GTFS_XLSX_URL = "https://docs.google.com/spreadsheets/d/15zsK-lBuibUtZ1s2FxVHvAmSu-pEuE0NDT6CAMYL2TY/export?format=xlsx"
+
 INPUT_FILES_ENV = "INPUT_FILES"
 INPUT_FILE_LIST_ENV = "INPUT_FILE_LIST"
 MIN_DISTANCE_KM_ENV = "MIN_DISTANCE_KM"
@@ -129,6 +132,8 @@ GTFS_IGNORELIST_RESET_ENV = "GTFS_IGNORELIST_RESET"
 GTFS_FILL_MISSING_COUNTRY_ENV = "GTFS_FILL_MISSING_COUNTRY"
 GTFS_VALIDATE_COUNTRY_BBOX_ENV = "GTFS_VALIDATE_COUNTRY_BBOX"
 GTFS_COUNTRY_BBOX_MARGIN_ENV = "GTFS_COUNTRY_BBOX_MARGIN"
+GTFS_INCLUDE_STOP_TIMES_ENV = "GTFS_INCLUDE_STOP_TIMES"
+GTFS_DISABLE_CATALOG_ENV = "GTFS_DISABLE_CATALOG"
 ETL_SNAPSHOT_DIR_ENV = "ETL_SNAPSHOT_DIR"
 ETL_SNAPSHOT_WRITE_ENV = "ETL_SNAPSHOT_WRITE"
 ETL_SNAPSHOT_LOAD_ENV = "ETL_SNAPSHOT_LOAD"
@@ -682,7 +687,7 @@ def _spark_session() -> SparkSession:
         parts.append(value)
         return ",".join(parts)
 
-    def _find_postgres_jar() -> str | None:
+    def _find_postgres_jar() -> tuple[str | None, bool]:
         candidates: list[str] = []
         spark_home = os.environ.get("SPARK_HOME")
         if spark_home:
@@ -700,10 +705,10 @@ def _spark_session() -> SparkSession:
                 for name in os.listdir(jars_dir):
                     lower = name.lower()
                     if lower.startswith("postgresql-") and lower.endswith(".jar"):
-                        return os.path.join(jars_dir, name)
+                        return os.path.join(jars_dir, name), True
             except OSError:
                 continue
-        return None
+        return None, False
 
     master = os.environ.get("SPARK_MASTER", "local[*]")
     builder = SparkSession.builder.appName("obrail-transport-etl").master(master)
@@ -749,10 +754,14 @@ def _spark_session() -> SparkSession:
         else:
             LOGGER.warning("PG_JDBC_JAR introuvable: %s", pg_jar)
     if not has_pg_driver:
-        discovered = _find_postgres_jar()
+        discovered, in_spark_jars = _find_postgres_jar()
         if discovered:
-            jars = _append_csv(jars, discovered)
-            has_pg_driver = True
+            if in_spark_jars:
+                LOGGER.info("PG JDBC jar deja present dans Spark: %s", discovered)
+                has_pg_driver = True
+            else:
+                jars = _append_csv(jars, discovered)
+                has_pg_driver = True
     pg_pkg = os.environ.get("PG_JDBC_PACKAGE")
     if not has_pg_driver and pg_pkg:
         packages = _append_csv(packages, pg_pkg)
@@ -1009,6 +1018,7 @@ def _extract_trips_from_gtfs_dir(
     default_country: str | None = None,
     force_night: bool = False,
 ) -> DataFrame | None:
+    include_times = _truthy_env(GTFS_INCLUDE_STOP_TIMES_ENV, False)
     routes_path = os.path.join(gtfs_dir, "routes.txt")
     trips_path = os.path.join(gtfs_dir, "trips.txt")
     stop_times_path = os.path.join(gtfs_dir, "stop_times.txt")
@@ -1050,10 +1060,17 @@ def _extract_trips_from_gtfs_dir(
         trips = trips.withColumn("distance", F.lit(None).cast(StringType()))
     if "emissions" not in trips.columns:
         trips = trips.withColumn("emissions", F.lit(None).cast(StringType()))
+    if include_times:
+        LOGGER.info("GTFS stop_times: extraction des heures activee.")
+        stop_times_cols = ["trip_id", "stop_id", "stop_sequence", "arrival_time", "departure_time"]
+    else:
+        LOGGER.info("GTFS stop_times: extraction des heures desactivee.")
+        stop_times_cols = ["trip_id", "stop_id", "stop_sequence"]
+
     stop_times = _read_csv(
         spark,
         stop_times_path,
-        ["trip_id", "stop_id", "stop_sequence"],
+        stop_times_cols,
     )
     stops = _read_csv(
         spark,
@@ -1126,16 +1143,36 @@ def _extract_trips_from_gtfs_dir(
     stop_times = stop_times.filter(F.col("stop_sequence").isNotNull())
     win_first = Window.partitionBy("trip_id").orderBy(F.col("stop_sequence").asc())
     win_last = Window.partitionBy("trip_id").orderBy(F.col("stop_sequence").desc())
-    first_stop = (
-        stop_times.withColumn("rn", F.row_number().over(win_first))
-        .filter(F.col("rn") == 1)
-        .select(F.col("trip_id"), F.col("stop_id").alias("departure_stop_id"))
-    )
-    last_stop = (
-        stop_times.withColumn("rn", F.row_number().over(win_last))
-        .filter(F.col("rn") == 1)
-        .select(F.col("trip_id"), F.col("stop_id").alias("arrival_stop_id"))
-    )
+    if include_times:
+        first_stop = (
+            stop_times.withColumn("rn", F.row_number().over(win_first))
+            .filter(F.col("rn") == 1)
+            .select(
+                F.col("trip_id"),
+                F.col("stop_id").alias("departure_stop_id"),
+                F.col("departure_time"),
+            )
+        )
+        last_stop = (
+            stop_times.withColumn("rn", F.row_number().over(win_last))
+            .filter(F.col("rn") == 1)
+            .select(
+                F.col("trip_id"),
+                F.col("stop_id").alias("arrival_stop_id"),
+                F.col("arrival_time"),
+            )
+        )
+    else:
+        first_stop = (
+            stop_times.withColumn("rn", F.row_number().over(win_first))
+            .filter(F.col("rn") == 1)
+            .select(F.col("trip_id"), F.col("stop_id").alias("departure_stop_id"))
+        )
+        last_stop = (
+            stop_times.withColumn("rn", F.row_number().over(win_last))
+            .filter(F.col("rn") == 1)
+            .select(F.col("trip_id"), F.col("stop_id").alias("arrival_stop_id"))
+        )
 
     stops = _resolve_parent_stops(stops)
     default_country = default_country or _default_country_code("gtfs")
@@ -1205,7 +1242,7 @@ def _extract_trips_from_gtfs_dir(
     )
     trips = trips.join(dep, "departure_stop_id", "left").join(arr, "arrival_stop_id", "left")
 
-    trips = trips.select(
+    select_cols = [
         "transport_type",
         "specificite",
         "train_type",
@@ -1222,7 +1259,10 @@ def _extract_trips_from_gtfs_dir(
         "arrival_lat",
         "arrival_lon",
         "arrival_country",
-    )
+    ]
+    if include_times:
+        select_cols.extend(["departure_time", "arrival_time"])
+    trips = trips.select(*select_cols)
     return trips
 
 
@@ -1945,15 +1985,22 @@ def run_stream_etl(argv: list[str] | None = None) -> None:
         if not snapshot_only:
             inputs = _load_input_paths(argv, url_map, base_map)
             xlsx_env = os.environ.get(GTFS_XLSX_URL_ENV)
-            if xlsx_env:
-                xlsx_items = _parse_list_env(xlsx_env)
-                if not xlsx_items and xlsx_env.strip():
-                    xlsx_items = [xlsx_env.strip()]
-                if xlsx_items:
+            if xlsx_env is None:
+                LOGGER.info("GTFS_XLSX_URL env: <not set>")
+            else:
+                LOGGER.info("GTFS_XLSX_URL env: %s", xlsx_env)
+            if xlsx_env is not None:
+                xlsx_raw = xlsx_env.strip()
+                if xlsx_raw:
+                    xlsx_items = _parse_list_env(xlsx_env)
+                    if not xlsx_items:
+                        xlsx_items = [xlsx_raw]
                     LOGGER.info("XLSX inputs: %s", ", ".join(xlsx_items))
                     for item in xlsx_items:
                         if item:
                             inputs.append(item)
+                else:
+                    LOGGER.info("XLSX inputs: none (GTFS_XLSX_URL empty).")
             # Ajout des GTFS dynamiques par country_code depuis un catalogue CSV
             catalog_url = (
                 os.environ.get("GTFS_CATALOG_URL")
@@ -1961,8 +2008,9 @@ def run_stream_etl(argv: list[str] | None = None) -> None:
                 or os.environ.get("MOBILITY_DATABASE_CATALOG_URL")
                 or GTFS_CATALOG_URL
             )
+            catalog_disabled = _truthy_env(GTFS_DISABLE_CATALOG_ENV, False)
             country_codes_env = os.environ.get("GTFS_COUNTRY_CODES")
-            if country_codes_env:
+            if country_codes_env is not None:
                 country_codes = [c.strip().upper() for c in country_codes_env.split(",") if c.strip()]
             else:
                 country_codes = sorted(GTFS_COUNTRY_CODES)
@@ -1971,13 +2019,14 @@ def run_stream_etl(argv: list[str] | None = None) -> None:
             per_country = int(per_country_env) if per_country_env and per_country_env.isdigit() else None
             if per_country is None:
                 per_country = int(max_sources_env) if max_sources_env and max_sources_env.isdigit() else GTFS_MAX_SOURCES
-            if catalog_url and country_codes:
+            if catalog_disabled:
+                LOGGER.info("GTFS catalog desactive (GTFS_DISABLE_CATALOG=1).")
+            elif catalog_url and country_codes:
                 LOGGER.info(
                     "GTFS catalog countries: %s (max per country=%s)",
                     ",".join(country_codes),
                     per_country,
                 )
-            if catalog_url and country_codes:
                 dynamic_gtfs_urls = _get_gtfs_sources_by_country_code(
                     catalog_url,
                     country_codes,
@@ -1985,6 +2034,8 @@ def run_stream_etl(argv: list[str] | None = None) -> None:
                     per_country=per_country,
                 )
                 inputs.extend(dynamic_gtfs_urls)
+            elif catalog_url and not country_codes:
+                LOGGER.info("GTFS catalog desactive (aucun country_code).")
             # Ajout des GTFS_SOURCES en parall?le (optionnel)
             include_static = _truthy_env(GTFS_INCLUDE_STATIC_SOURCES_ENV, True)
             if include_static:
