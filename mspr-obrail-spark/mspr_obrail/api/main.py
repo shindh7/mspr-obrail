@@ -242,7 +242,7 @@ def _get_conn():
         port=os.environ.get("PGPORT", "5432"),
         dbname=os.environ.get("PGDATABASE", "obrail"),
         user=os.environ.get("PGUSER", "postgres"),
-        password=os.environ.get("PGPASSWORD", "143123"),
+        password=os.environ.get("PGPASSWORD", ""), #mot de passe de la bdd
     )
 
 
@@ -1059,6 +1059,7 @@ def quality_stats(
         "trips_missing_country": row[3] or 0,
         "trips_missing_coords": row[4] or 0,
         "stations_used": row[5] or 0,
+
         "stations_missing_country": row[6] or 0,
         "stations_missing_coords": row[7] or 0,
         "vehicles_used": row[8] or 0,
