@@ -1928,7 +1928,7 @@ def _get_conn():
         port=os.environ.get("PGPORT", "5432"),
         dbname=os.environ.get("PGDATABASE", "obrail"),
         user=os.environ.get("PGUSER", "postgres"),
-        password=os.environ.get("PGPASSWORD", "143123"),
+        password=os.environ.get("PGPASSWORD", ""), #mot de passe de la bd
     )
 
 
@@ -1942,7 +1942,7 @@ def _jdbc_url() -> str:
 def _write_df_jdbc(df: DataFrame, table_name: str) -> None:
     props = {
         "user": os.environ.get("PGUSER", "postgres"),
-        "password": os.environ.get("PGPASSWORD", "143123"),
+        "password": os.environ.get("PGPASSWORD", "mdpuser"), #mot de passe de l'utilisateur windows (quand on dévérouille l'ordi etc)
         "driver": "org.postgresql.Driver",
     }
     partitions_raw = os.environ.get(JDBC_WRITE_PARTITIONS_ENV)
@@ -2434,3 +2434,4 @@ if __name__ == "__main__":
     import sys
 
     run_stream_etl(sys.argv[1:])
+
