@@ -39,6 +39,7 @@ uvicorn api.main:app --reload
 - GET `/countries`
 - GET `/operators`
 - GET `/stats/coverage`
+- GET `/stats/quality`
 
 ## Exemples de requêtes
 - Trains de nuit en France (limités à 50)
@@ -54,6 +55,7 @@ uvicorn api.main:app --reload
 
 ## Interface web
 - http://localhost:8000/
+  - onglet **Quality** : tableau de bord de completude des donnees
 
 ## Notes
 Requêtes SQL paramétrées, indexées via le schéma du data mart.

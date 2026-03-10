@@ -7,9 +7,16 @@ from __future__ import annotations
 
 import os
 import csv
+import re
+from datetime import date, datetime, time, timedelta
 from functools import lru_cache
 from pathlib import Path
 from typing import Optional
+
+try:
+    from zoneinfo import ZoneInfo  # Python 3.9+
+except Exception:  # pragma: no cover - optional
+    ZoneInfo = None  # type: ignore
 
 import psycopg2
 from fastapi import Depends, FastAPI, HTTPException, Query
@@ -117,13 +124,125 @@ def _country_name(code: Optional[str]) -> Optional[str]:
     return _country_mapping().get(code.upper(), code.upper())
 
 
+def _column_exists(db, table_name: str, column_name: str) -> bool:
+    sql = """
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = %s
+          AND table_name = %s
+          AND column_name = %s
+        LIMIT 1;
+    """
+    with db.cursor() as cur:
+        cur.execute(sql, (SCHEMA, table_name, column_name))
+        return cur.fetchone() is not None
+
+
+def _etl_log_path() -> Path:
+    configured = os.environ.get("ETL_LOG_FILE")
+    if configured:
+        return Path(configured)
+    return STATIC_DIR.parent / "logs" / "transport_etl.log"
+
+
+def _last_etl_run_lines() -> list[str]:
+    path = _etl_log_path()
+    if not path.exists():
+        return []
+    try:
+        lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError:
+        return []
+    if not lines:
+        return []
+    if len(lines) > 50000:
+        lines = lines[-50000:]
+    start_index = 0
+    for idx, line in enumerate(lines):
+        if "ETL log file:" in line:
+            start_index = idx
+    return lines[start_index:]
+
+
+def _etl_quality_metrics_from_log() -> dict[str, int | bool | str]:
+    lines = _last_etl_run_lines()
+    if not lines:
+        return {
+            "quality_log_found": False,
+            "quality_log_path": str(_etl_log_path()),
+            "broken_source_links": 0,
+            "invalid_zip_sources": 0,
+            "missing_gtfs_files": 0,
+            "unsupported_input_files": 0,
+            "feeds_without_trips": 0,
+            "agency_timezone_missing_feeds": 0,
+            "trips_dropped_invalid_coords": 0,
+        }
+
+    broken_urls: set[str] = set()
+    invalid_zip_paths: set[str] = set()
+    missing_gtfs_paths: set[str] = set()
+    unsupported_inputs = 0
+    feeds_without_trips = 0
+    timezone_missing_feeds = 0
+    dropped_invalid_coords = 0
+
+    for line in lines:
+        if "Download failed:" in line and "(retry" not in line:
+            match = re.search(r"Download failed:\s+(\S+)", line)
+            if match:
+                broken_urls.add(match.group(1).strip())
+            continue
+
+        if "Invalid ZIP:" in line:
+            match = re.search(r"Invalid ZIP:\s+(.+)$", line)
+            if match:
+                invalid_zip_paths.add(match.group(1).strip())
+            continue
+
+        if "Missing GTFS file:" in line:
+            match = re.search(r"Missing GTFS file:\s+(.+)$", line)
+            if match:
+                missing_gtfs_paths.add(match.group(1).strip())
+            continue
+
+        if "Unsupported input type:" in line:
+            unsupported_inputs += 1
+            continue
+
+        if "GTFS feed ignore (aucun trip extrait):" in line:
+            feeds_without_trips += 1
+            continue
+
+        if "agency_timezone manquant" in line:
+            timezone_missing_feeds += 1
+            continue
+
+        if "Quality: rows dropped due invalid coordinates:" in line:
+            match = re.search(r"Quality: rows dropped due invalid coordinates:\s*(\d+)", line)
+            if match:
+                dropped_invalid_coords += int(match.group(1))
+
+    return {
+        "quality_log_found": True,
+        "quality_log_path": str(_etl_log_path()),
+        "broken_source_links": len(broken_urls),
+        "invalid_zip_sources": len(invalid_zip_paths),
+        "missing_gtfs_files": len(missing_gtfs_paths),
+        "unsupported_input_files": unsupported_inputs,
+        "feeds_without_trips": feeds_without_trips,
+        "agency_timezone_missing_feeds": timezone_missing_feeds,
+        "trips_dropped_invalid_coords": dropped_invalid_coords,
+    }
+
+
 def _get_conn():
     return psycopg2.connect(
         host=os.environ.get("PGHOST", "localhost"),
         port=os.environ.get("PGPORT", "5432"),
         dbname=os.environ.get("PGDATABASE", "obrail"),
         user=os.environ.get("PGUSER", "postgres"),
-        password=os.environ.get("PGPASSWORD", ""),
+        password=os.environ.get("PGPASSWORD", "143123"),
     )
 
 
@@ -156,6 +275,49 @@ def ui_home():
 @app.get("/health", tags=["meta"])
 def health():
     return {"status": "ok", "version": app.version}
+
+
+def _parse_gtfs_time(value: Optional[str]) -> Optional[tuple[int, int, int, int]]:
+    if not value:
+        return None
+    raw = value.strip()
+    if not raw:
+        return None
+    parts = raw.split(":")
+    if len(parts) < 2:
+        return None
+    try:
+        hours = int(parts[0])
+        minutes = int(parts[1])
+        seconds = int(parts[2]) if len(parts) > 2 else 0
+    except ValueError:
+        return None
+    if minutes < 0 or minutes >= 60 or seconds < 0 or seconds >= 60 or hours < 0:
+        return None
+    day_offset = hours // 24
+    hours = hours % 24
+    return day_offset, hours, minutes, seconds
+
+
+def _convert_time_to_cet(
+    value: Optional[str],
+    agency_tz: Optional[str],
+    service_date: date,
+    cet_tz: Optional[ZoneInfo],
+) -> Optional[datetime]:
+    if not value or not agency_tz or not cet_tz or ZoneInfo is None:
+        return None
+    parsed = _parse_gtfs_time(value)
+    if not parsed:
+        return None
+    day_offset, hours, minutes, seconds = parsed
+    try:
+        local_tz = ZoneInfo(agency_tz)
+    except Exception:
+        return None
+    dt_local = datetime.combine(service_date, time(hours, minutes, seconds)) + timedelta(days=day_offset)
+    dt_local = dt_local.replace(tzinfo=local_tz)
+    return dt_local.astimezone(cet_tz)
 
 
 class Vehicule(BaseModel):
@@ -274,6 +436,7 @@ def list_trips_legacy(
     train_kind: Optional[str] = Query(default=None, min_length=2, max_length=32),
     departure_station: Optional[str] = Query(default=None, min_length=2, max_length=256),
     arrival_station: Optional[str] = Query(default=None, min_length=2, max_length=256),
+    service_date: Optional[str] = Query(default=None, min_length=10, max_length=10),
     limit: int = Query(default=100, ge=1, le=10000),
     offset: int = Query(default=0, ge=0),
     db=Depends(get_db),
@@ -332,10 +495,11 @@ def list_trips_legacy(
             a.longitude AS arrival_lon,
             t.distance_km AS distance_km,
             t.co2_kg AS co2_kg,
-            NULL::text AS departure_time,
-            NULL::text AS arrival_time,
+            t.departure_time AS departure_time,
+            t.arrival_time AS arrival_time,
             NULL::text AS departure_date,
             NULL::text AS arrival_date,
+            t.agency_timezone AS agency_timezone,
             t.is_night AS is_night,
             CASE
                 WHEN ds.pays IS NOT NULL AND a.pays IS NOT NULL AND ds.pays <> a.pays THEN TRUE
@@ -355,8 +519,22 @@ def list_trips_legacy(
         cur.execute(sql, params)
         rows = cur.fetchall()
 
-    return [
-        {
+    base_date: Optional[date] = None
+    cet_tz: Optional[ZoneInfo] = None
+    if service_date:
+        try:
+            base_date = date.fromisoformat(service_date)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=f"Invalid service_date: {exc}") from exc
+        if ZoneInfo is not None:
+            try:
+                cet_tz = ZoneInfo("Europe/Paris")
+            except Exception:
+                cet_tz = None
+
+    results = []
+    for r in rows:
+        item = {
             "fact_trip_key": r[0],
             "country": r[1],
             "operator": r[2],
@@ -376,11 +554,27 @@ def list_trips_legacy(
             "arrival_time": r[16],
             "departure_date": r[17],
             "arrival_date": r[18],
-            "is_night": r[19],
-            "is_cross_border": r[20],
+            "agency_timezone": r[19],
+            "is_night": r[20],
+            "is_cross_border": r[21],
         }
-        for r in rows
-    ]
+        if base_date and cet_tz:
+            dep_cet = _convert_time_to_cet(item["departure_time"], item["agency_timezone"], base_date, cet_tz)
+            arr_cet = _convert_time_to_cet(item["arrival_time"], item["agency_timezone"], base_date, cet_tz)
+            if dep_cet:
+                item["departure_time_cet"] = dep_cet.strftime("%H:%M:%S")
+                item["departure_date_cet"] = dep_cet.date().isoformat()
+            else:
+                item["departure_time_cet"] = None
+                item["departure_date_cet"] = None
+            if arr_cet:
+                item["arrival_time_cet"] = arr_cet.strftime("%H:%M:%S")
+                item["arrival_date_cet"] = arr_cet.date().isoformat()
+            else:
+                item["arrival_time_cet"] = None
+                item["arrival_date_cet"] = None
+        results.append(item)
+    return results
 
 
 @app.get("/coverage", tags=["stats"])
@@ -394,6 +588,9 @@ def coverage_legacy(
         filters.append("v.type_transport = %s")
         params.append(type_transport)
     where = f"AND {' AND '.join(filters)}" if filters else ""
+    # where clause is injected twice (departure + arrival), so duplicate params.
+    if params:
+        params = params * 2
     sql = f"""
         WITH trip_countries AS (
             SELECT t.trajet_id, ds.pays AS country_code
@@ -760,3 +957,115 @@ def stats(db=Depends(get_db)):
         total_stations=row[2] or 0,
         night_trajets=row[3] or 0,
     )
+
+
+@app.get("/stats/quality", tags=["stats"])
+def quality_stats(
+    type_transport: Optional[str] = Query(default=None, min_length=2, max_length=32),
+    db=Depends(get_db),
+):
+    filters: list[str] = []
+    params: list = []
+    if type_transport:
+        filters.append("v.type_transport = %s")
+        params.append(type_transport)
+    where = f"WHERE {' AND '.join(filters)}" if filters else ""
+
+    sql = f"""
+        WITH base AS (
+            SELECT
+                t.trajet_id,
+                t.distance_km,
+                t.co2_kg,
+                v.vehicule_id,
+                v.specificite,
+                ds.station_id AS dep_id,
+                ds.latitude AS dep_lat,
+                ds.longitude AS dep_lon,
+                ds.pays AS dep_pays,
+                a.station_id AS arr_id,
+                a.latitude AS arr_lat,
+                a.longitude AS arr_lon,
+                a.pays AS arr_pays
+            FROM {SCHEMA}.trajet t
+            LEFT JOIN {SCHEMA}.vehicule v ON v.vehicule_id = t.vehicule_id
+            LEFT JOIN {SCHEMA}.station ds ON ds.station_id = t.departure_station_id
+            LEFT JOIN {SCHEMA}.station a ON a.station_id = t.arrival_station_id
+            {where}
+        ),
+        station_ids AS (
+            SELECT dep_id AS station_id FROM base WHERE dep_id IS NOT NULL
+            UNION
+            SELECT arr_id AS station_id FROM base WHERE arr_id IS NOT NULL
+        ),
+        stations AS (
+            SELECT s.station_id, s.latitude, s.longitude, s.pays
+            FROM {SCHEMA}.station s
+            JOIN station_ids si ON si.station_id = s.station_id
+        ),
+        vehicles AS (
+            SELECT v.vehicule_id, v.specificite
+            FROM {SCHEMA}.vehicule v
+            JOIN (SELECT DISTINCT vehicule_id FROM base WHERE vehicule_id IS NOT NULL) b
+                ON b.vehicule_id = v.vehicule_id
+        )
+        SELECT
+            (SELECT COUNT(*) FROM base) AS total_trips,
+            (SELECT COUNT(*) FROM base WHERE distance_km IS NULL) AS trips_missing_distance,
+            (SELECT COUNT(*) FROM base WHERE co2_kg IS NULL) AS trips_missing_co2,
+            (SELECT COUNT(*) FROM base WHERE dep_pays IS NULL OR dep_pays = '' OR arr_pays IS NULL OR arr_pays = '') AS trips_missing_country,
+            (SELECT COUNT(*) FROM base WHERE dep_lat IS NULL OR dep_lon IS NULL OR arr_lat IS NULL OR arr_lon IS NULL) AS trips_missing_coords,
+            (SELECT COUNT(*) FROM stations) AS stations_used,
+            (SELECT COUNT(*) FROM stations WHERE pays IS NULL OR pays = '') AS stations_missing_country,
+            (SELECT COUNT(*) FROM stations WHERE latitude IS NULL OR longitude IS NULL) AS stations_missing_coords,
+            (SELECT COUNT(*) FROM vehicles) AS vehicles_used,
+            (SELECT COUNT(*) FROM vehicles WHERE specificite IS NULL OR trim(specificite) = '') AS vehicles_missing_specificite;
+    """
+
+    with db.cursor() as cur:
+        cur.execute(sql, params)
+        row = cur.fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail="No data found in transport schema.")
+
+    has_timezone_col = _column_exists(db, "trajet", "agency_timezone")
+    has_departure_time_col = _column_exists(db, "trajet", "departure_time")
+    has_arrival_time_col = _column_exists(db, "trajet", "arrival_time")
+
+    schedule_sql = f"""
+        SELECT
+            {"COUNT(*) FILTER (WHERE t.agency_timezone IS NULL OR btrim(t.agency_timezone) = '')" if has_timezone_col else "0"} AS trips_missing_timezone,
+            {"COUNT(*) FILTER (WHERE t.departure_time IS NULL OR btrim(t.departure_time) = '')" if has_departure_time_col else "0"} AS trips_missing_departure_time,
+            {"COUNT(*) FILTER (WHERE t.arrival_time IS NULL OR btrim(t.arrival_time) = '')" if has_arrival_time_col else "0"} AS trips_missing_arrival_time,
+            {
+                "COUNT(*) FILTER (WHERE (t.departure_time IS NULL OR btrim(t.departure_time) = '') AND (t.arrival_time IS NULL OR btrim(t.arrival_time) = ''))"
+                if has_departure_time_col and has_arrival_time_col
+                else "0"
+            } AS trips_missing_both_times
+        FROM {SCHEMA}.trajet t
+        LEFT JOIN {SCHEMA}.vehicule v ON v.vehicule_id = t.vehicule_id
+        {where};
+    """
+    with db.cursor() as cur:
+        cur.execute(schedule_sql, params)
+        schedule_row = cur.fetchone()
+
+    log_metrics = _etl_quality_metrics_from_log()
+
+    return {
+        "total_trips": row[0] or 0,
+        "trips_missing_distance": row[1] or 0,
+        "trips_missing_co2": row[2] or 0,
+        "trips_missing_country": row[3] or 0,
+        "trips_missing_coords": row[4] or 0,
+        "stations_used": row[5] or 0,
+        "stations_missing_country": row[6] or 0,
+        "stations_missing_coords": row[7] or 0,
+        "vehicles_used": row[8] or 0,
+        "vehicles_missing_specificite": row[9] or 0,
+        "trips_missing_timezone": schedule_row[0] or 0,
+        "trips_missing_departure_time": schedule_row[1] or 0,
+        "trips_missing_arrival_time": schedule_row[2] or 0,
+        "trips_missing_both_times": schedule_row[3] or 0,
+        **log_metrics,
+    }
