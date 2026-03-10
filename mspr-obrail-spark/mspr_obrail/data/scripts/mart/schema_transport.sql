@@ -26,8 +26,18 @@ CREATE TABLE IF NOT EXISTS obrail_transport.trajet (
     departure_station_id INTEGER REFERENCES obrail_transport.station(station_id),
     arrival_station_id INTEGER REFERENCES obrail_transport.station(station_id),
     distance_km DOUBLE PRECISION,
-    co2_kg DOUBLE PRECISION
+    co2_kg DOUBLE PRECISION,
+    departure_time VARCHAR(16),
+    arrival_time VARCHAR(16),
+    agency_timezone VARCHAR(64)
 );
+
+ALTER TABLE IF EXISTS obrail_transport.trajet
+    ADD COLUMN IF NOT EXISTS departure_time VARCHAR(16);
+ALTER TABLE IF EXISTS obrail_transport.trajet
+    ADD COLUMN IF NOT EXISTS arrival_time VARCHAR(16);
+ALTER TABLE IF EXISTS obrail_transport.trajet
+    ADD COLUMN IF NOT EXISTS agency_timezone VARCHAR(64);
 
 CREATE INDEX IF NOT EXISTS ix_trajet_vehicule ON obrail_transport.trajet (vehicule_id);
 CREATE INDEX IF NOT EXISTS ix_trajet_departure ON obrail_transport.trajet (departure_station_id);
