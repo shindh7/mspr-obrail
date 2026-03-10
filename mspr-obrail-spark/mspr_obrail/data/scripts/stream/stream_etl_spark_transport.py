@@ -112,6 +112,9 @@ SPARK_EXECUTOR_MEMORY_ENV = "SPARK_EXECUTOR_MEMORY"
 SPARK_DRIVER_MEMORY_OVERHEAD_ENV = "SPARK_DRIVER_MEMORY_OVERHEAD"
 SPARK_EXECUTOR_MEMORY_OVERHEAD_ENV = "SPARK_EXECUTOR_MEMORY_OVERHEAD"
 SPARK_LOCAL_DIR_ENV = "SPARK_LOCAL_DIR"
+SPARK_AUTO_BROADCAST_THRESHOLD_ENV = "SPARK_AUTO_BROADCAST_THRESHOLD"
+SPARK_ANSI_ENABLED_ENV = "SPARK_ANSI_ENABLED"
+SPARK_SQL_CODEGEN_ENV = "SPARK_SQL_CODEGEN"
 ETL_LOG_FILE_ENV = "ETL_LOG_FILE"
 DOWNLOAD_TIMEOUT_ENV = "DOWNLOAD_TIMEOUT"
 DOWNLOAD_RETRIES_ENV = "DOWNLOAD_RETRIES"
@@ -133,16 +136,20 @@ GTFS_FILL_MISSING_COUNTRY_ENV = "GTFS_FILL_MISSING_COUNTRY"
 GTFS_VALIDATE_COUNTRY_BBOX_ENV = "GTFS_VALIDATE_COUNTRY_BBOX"
 GTFS_COUNTRY_BBOX_MARGIN_ENV = "GTFS_COUNTRY_BBOX_MARGIN"
 GTFS_INCLUDE_STOP_TIMES_ENV = "GTFS_INCLUDE_STOP_TIMES"
+GTFS_STOP_TIMES_MODE_ENV = "GTFS_STOP_TIMES_MODE"
 GTFS_DISABLE_CATALOG_ENV = "GTFS_DISABLE_CATALOG"
+FLIGHTS_ENABLE_ENV = "FLIGHTS_ENABLE"
+FLIGHTS_URL_ENV = "FLIGHTS_URL"
 ETL_SNAPSHOT_DIR_ENV = "ETL_SNAPSHOT_DIR"
 ETL_SNAPSHOT_WRITE_ENV = "ETL_SNAPSHOT_WRITE"
 ETL_SNAPSHOT_LOAD_ENV = "ETL_SNAPSHOT_LOAD"
 ETL_SNAPSHOT_MERGE_ENV = "ETL_SNAPSHOT_MERGE"
 ETL_SNAPSHOT_ID_ENV = "ETL_SNAPSHOT_ID"
+ETL_LOG_FEED_STATS_ENV = "ETL_LOG_FEED_STATS"
 ETL_TRUNCATE_ENV = "ETL_TRUNCATE"
 
 GTFS_CATALOG_URL = "https://files.mobilitydatabase.org/feeds_v2.csv" #"C:\\2_EPSI\\MSPR\\mspr_code\\feed_v2_eu27_gtfs_active.csv"
-GTFS_MAX_SOURCES = 3
+GTFS_MAX_SOURCES = 30
 GTFS_COUNTRY_CODES = {
     "FR",
     "DE",
@@ -176,6 +183,9 @@ DEFAULT_CO2_INTERCITE_TRAIN_TYPES = "102,103"
 DEFAULT_CO2_RER_TRAIN_TYPES = "109"
 DEFAULT_FLIGHTS_EU_COUNTRY_CODES = (
     "AT,BE,BG,HR,CY,CZ,DK,EE,FI,FR,DE,GR,HU,IE,IT,LV,LT,LU,MT,NL,PL,PT,RO,SK,SI,ES,SE,NO,IS,CH,GB,LI"
+)
+DEFAULT_FLIGHTS_URL = (
+    "https://www.eurocontrol.int/performance/data/download/OPDI/v002/flight_list/flight_list_202512.parquet"
 )
 DEFAULT_SCHEMA = "obrail_transport"
 COORD_ROUND_DECIMALS = 4
@@ -687,6 +697,18 @@ def _spark_session() -> SparkSession:
         parts.append(value)
         return ",".join(parts)
 
+    def _spark_home_has_sql(spark_home: str) -> bool:
+        jars_dir = os.path.join(spark_home, "jars")
+        if not os.path.isdir(jars_dir):
+            return False
+        try:
+            for name in os.listdir(jars_dir):
+                if name.lower().startswith("spark-sql") and name.lower().endswith(".jar"):
+                    return True
+        except OSError:
+            return False
+        return False
+
     def _find_postgres_jar() -> tuple[str | None, bool]:
         candidates: list[str] = []
         spark_home = os.environ.get("SPARK_HOME")
@@ -709,6 +731,39 @@ def _spark_session() -> SparkSession:
             except OSError:
                 continue
         return None, False
+
+    spark_home_env = os.environ.get("SPARK_HOME")
+    pyspark_home: str | None = None
+    try:
+        import pyspark  # noqa: WPS433
+
+        pyspark_home = os.path.dirname(pyspark.__file__)
+    except Exception:
+        pyspark_home = None
+
+    if pyspark_home:
+        if not spark_home_env:
+            os.environ["SPARK_HOME"] = pyspark_home
+            spark_home_env = pyspark_home
+        else:
+            norm_env = os.path.normcase(os.path.normpath(spark_home_env))
+            norm_py = os.path.normcase(os.path.normpath(pyspark_home))
+            if norm_env != norm_py:
+                LOGGER.warning(
+                    "SPARK_HOME pointe vers un autre PySpark (%s). Utilisation de %s",
+                    spark_home_env,
+                    pyspark_home,
+                )
+                os.environ["SPARK_HOME"] = pyspark_home
+                spark_home_env = pyspark_home
+
+    if spark_home_env and not _spark_home_has_sql(spark_home_env):
+        LOGGER.warning("SPARK_HOME invalide (spark-sql jar manquant), ignore: %s", spark_home_env)
+        os.environ.pop("SPARK_HOME", None)
+
+    submit_args = os.environ.get("PYSPARK_SUBMIT_ARGS")
+    if submit_args and "pyspark-shell" not in submit_args:
+        os.environ["PYSPARK_SUBMIT_ARGS"] = f"{submit_args} pyspark-shell"
 
     master = os.environ.get("SPARK_MASTER", "local[*]")
     builder = SparkSession.builder.appName("obrail-transport-etl").master(master)
@@ -738,6 +793,22 @@ def _spark_session() -> SparkSession:
         builder = builder.config("spark.executor.memoryOverhead", executor_overhead)
     if local_dir:
         builder = builder.config("spark.local.dir", local_dir)
+    broadcast_threshold = os.environ.get(SPARK_AUTO_BROADCAST_THRESHOLD_ENV)
+    if broadcast_threshold is None:
+        # Safer default for large feeds on local machines with limited memory.
+        broadcast_threshold = "-1"
+    if broadcast_threshold:
+        builder = builder.config("spark.sql.autoBroadcastJoinThreshold", broadcast_threshold)
+    ansi_raw = os.environ.get(SPARK_ANSI_ENABLED_ENV)
+    if ansi_raw is not None:
+        builder = builder.config("spark.sql.ansi.enabled", ansi_raw)
+    else:
+        builder = builder.config("spark.sql.ansi.enabled", "false")
+    codegen_raw = os.environ.get(SPARK_SQL_CODEGEN_ENV)
+    if codegen_raw is not None:
+        builder = builder.config("spark.sql.codegen.wholeStage", codegen_raw)
+    else:
+        builder = builder.config("spark.sql.codegen.wholeStage", "false")
 
     jars = os.environ.get("SPARK_JARS")
     packages = os.environ.get("SPARK_JARS_PACKAGES")
@@ -795,14 +866,30 @@ def _read_csv(
 ) -> DataFrame:
     df = spark.read.option("header", True).option("inferSchema", False).csv(path)
     if columns:
-        available = [col for col in columns if col in df.columns]
-        if available:
-            df = df.select(*available)
+        # Robust header matching: tolerate BOM, spaces and case differences.
+        normalized_to_actual: dict[str, str] = {}
+        for actual in df.columns:
+            normalized = actual.replace("\ufeff", "").strip().lower()
+            if normalized and normalized not in normalized_to_actual:
+                normalized_to_actual[normalized] = actual
+
+        selected = []
+        for expected in columns:
+            key = expected.replace("\ufeff", "").strip().lower()
+            actual = normalized_to_actual.get(key)
+            if not actual:
+                continue
+            if actual == expected:
+                selected.append(F.col(actual))
+            else:
+                selected.append(F.col(actual).alias(expected))
+        if selected:
+            df = df.select(*selected)
     return df
 
 
 def _extract_gtfs_files(zip_path: str, target_dir: str) -> dict[str, str]:
-    needed = {"routes.txt", "trips.txt", "stop_times.txt", "stops.txt"}
+    needed = {"routes.txt", "trips.txt", "stop_times.txt", "stops.txt", "agency.txt"}
     extracted: dict[str, str] = {}
     try:
         with zipfile.ZipFile(zip_path) as zf:
@@ -1018,7 +1105,16 @@ def _extract_trips_from_gtfs_dir(
     default_country: str | None = None,
     force_night: bool = False,
 ) -> DataFrame | None:
-    include_times = _truthy_env(GTFS_INCLUDE_STOP_TIMES_ENV, False)
+    mode_raw = (os.environ.get(GTFS_STOP_TIMES_MODE_ENV) or "").strip().lower()
+    if mode_raw in ("ends", "end", "firstlast", "first_last", "1", "true", "yes"):
+        include_times = True
+        stop_times_mode = "ends"
+    elif mode_raw in ("off", "none", "0", "false", "no"):
+        include_times = False
+        stop_times_mode = "off"
+    else:
+        include_times = _truthy_env(GTFS_INCLUDE_STOP_TIMES_ENV, False)
+        stop_times_mode = "ends" if include_times else "off"
     routes_path = os.path.join(gtfs_dir, "routes.txt")
     trips_path = os.path.join(gtfs_dir, "trips.txt")
     stop_times_path = os.path.join(gtfs_dir, "stop_times.txt")
@@ -1033,6 +1129,7 @@ def _extract_trips_from_gtfs_dir(
         spark,
         routes_path,
         [
+            "agency_id",
             "route_id",
             "route_type",
             "route_short_name",
@@ -1043,12 +1140,49 @@ def _extract_trips_from_gtfs_dir(
             "countries",
         ],
     )
+    if "agency_id" not in routes.columns:
+        routes = routes.withColumn("agency_id", F.lit(None).cast(StringType()))
     if "route_desc" not in routes.columns:
         routes = routes.withColumn("route_desc", F.lit(None).cast(StringType()))
     if "distance" not in routes.columns:
         routes = routes.withColumn("distance", F.lit(None).cast(DoubleType()))
     if "emissions" not in routes.columns:
         routes = routes.withColumn("emissions", F.lit(None).cast(DoubleType()))
+
+    agency_tz: str | None = None
+    agency_path = os.path.join(gtfs_dir, "agency.txt")
+    if os.path.exists(agency_path):
+        agency = _read_csv(spark, agency_path, ["agency_id", "agency_timezone"])
+        if "agency_timezone" in agency.columns:
+            agency = agency.withColumn("agency_timezone", F.trim(F.col("agency_timezone")))
+            if "agency_id" in agency.columns:
+                agency = agency.withColumn("agency_id", F.trim(F.col("agency_id")))
+                routes = routes.join(
+                    agency.select("agency_id", "agency_timezone"),
+                    "agency_id",
+                    "left",
+                )
+            else:
+                tz_rows = (
+                    agency.select("agency_timezone")
+                    .filter(F.col("agency_timezone").isNotNull())
+                    .limit(1)
+                    .collect()
+                )
+                agency_tz = tz_rows[0][0] if tz_rows else None
+    if "agency_timezone" not in routes.columns:
+        routes = routes.withColumn("agency_timezone", F.lit(agency_tz).cast(StringType()))
+    timezone_rows = (
+        routes.select("agency_timezone")
+        .filter(F.col("agency_timezone").isNotNull() & (F.trim(F.col("agency_timezone")) != ""))
+        .limit(1)
+        .collect()
+    )
+    if not timezone_rows:
+        LOGGER.warning(
+            "GTFS agency_timezone manquant: conversion CET impossible pour ce feed (%s).",
+            gtfs_dir,
+        )
     trips = _read_csv(
         spark,
         trips_path,
@@ -1061,10 +1195,10 @@ def _extract_trips_from_gtfs_dir(
     if "emissions" not in trips.columns:
         trips = trips.withColumn("emissions", F.lit(None).cast(StringType()))
     if include_times:
-        LOGGER.info("GTFS stop_times: extraction des heures activee.")
+        LOGGER.info("GTFS stop_times mode: %s (heures activees).", stop_times_mode)
         stop_times_cols = ["trip_id", "stop_id", "stop_sequence", "arrival_time", "departure_time"]
     else:
-        LOGGER.info("GTFS stop_times: extraction des heures desactivee.")
+        LOGGER.info("GTFS stop_times mode: %s (heures desactivees).", stop_times_mode)
         stop_times_cols = ["trip_id", "stop_id", "stop_sequence"]
 
     stop_times = _read_csv(
@@ -1129,17 +1263,25 @@ def _extract_trips_from_gtfs_dir(
         "name_blob",
         "distance_km",
         "co2_kg",
+        "agency_timezone",
     )
 
-    seq_raw = F.col("stop_sequence").cast(StringType())
-    seq_clean = F.regexp_replace(F.trim(seq_raw), ",", ".")
-    stop_times = stop_times.withColumn(
-        "stop_sequence",
-        F.when(
-            seq_clean.rlike(r"^-?\d+(\.\d+)?$"),
-            seq_clean.cast(DoubleType()).cast(IntegerType()),
-        ).otherwise(F.lit(None).cast(IntegerType())),
-    )
+    if "stop_sequence" not in stop_times.columns:
+        LOGGER.warning("GTFS stop_times sans stop_sequence, fallback ordre par stop_id.")
+        stop_times = stop_times.withColumn(
+            "stop_sequence",
+            F.row_number().over(Window.partitionBy("trip_id").orderBy(F.col("stop_id").asc())),
+        )
+    else:
+        seq_raw = F.col("stop_sequence").cast(StringType())
+        seq_clean = F.regexp_replace(F.trim(seq_raw), ",", ".")
+        stop_times = stop_times.withColumn(
+            "stop_sequence",
+            F.when(
+                seq_clean.rlike(r"^-?\d+(\.\d+)?$"),
+                seq_clean.cast(DoubleType()).cast(IntegerType()),
+            ).otherwise(F.lit(None).cast(IntegerType())),
+        )
     stop_times = stop_times.filter(F.col("stop_sequence").isNotNull())
     win_first = Window.partitionBy("trip_id").orderBy(F.col("stop_sequence").asc())
     win_last = Window.partitionBy("trip_id").orderBy(F.col("stop_sequence").desc())
@@ -1249,6 +1391,7 @@ def _extract_trips_from_gtfs_dir(
         "is_night",
         "distance_km",
         "co2_kg",
+        "agency_timezone",
         "departure_stop_id",
         "arrival_stop_id",
         "departure_station",
@@ -1383,11 +1526,13 @@ def _extract_trips_from_flights_csv(
 
     df = df.withColumn("departure_stop_id", F.lit(None).cast(StringType()))
     df = df.withColumn("arrival_stop_id", F.lit(None).cast(StringType()))
+    df = df.withColumn("agency_timezone", F.lit(None).cast(StringType()))
 
     return df.select(
         "transport_type",
         "specificite",
         "train_type",
+        "agency_timezone",
         "departure_stop_id",
         "arrival_stop_id",
         "departure_station",
@@ -1484,6 +1629,7 @@ def _extract_trips_from_flights_parquet(
 
     df = df.withColumn("departure_stop_id", F.col("adep_code"))
     df = df.withColumn("arrival_stop_id", F.col("ades_code"))
+    df = df.withColumn("agency_timezone", F.lit(None).cast(StringType()))
 
     df = df.withColumn(
         "departure_station",
@@ -1500,6 +1646,7 @@ def _extract_trips_from_flights_parquet(
         "transport_type",
         "specificite",
         "train_type",
+        "agency_timezone",
         "departure_stop_id",
         "arrival_stop_id",
         "departure_station",
@@ -1518,15 +1665,24 @@ def _filter_and_distance(df: DataFrame) -> DataFrame:
     min_km = float(min_km_raw) if min_km_raw else DEFAULT_MIN_DISTANCE_KM
     factor_raw = os.environ.get(DISTANCE_FACTOR_TRAIN_ENV)
     factor_train = float(factor_raw) if factor_raw else DEFAULT_DISTANCE_FACTOR_TRAIN
+    def _safe_double(col: Column) -> Column:
+        raw = F.regexp_replace(F.trim(col.cast(StringType())), ",", ".")
+        return F.when(raw.rlike(r"^-?\d+(\.\d+)?$"), raw.cast(DoubleType())).otherwise(
+            F.lit(None).cast(DoubleType())
+        )
 
-    df = df.withColumn("departure_lat", F.col("departure_lat").cast(DoubleType()))
-    df = df.withColumn("departure_lon", F.col("departure_lon").cast(DoubleType()))
-    df = df.withColumn("arrival_lat", F.col("arrival_lat").cast(DoubleType()))
-    df = df.withColumn("arrival_lon", F.col("arrival_lon").cast(DoubleType()))
+    df = df.withColumn("departure_lat", _safe_double(F.col("departure_lat")))
+    df = df.withColumn("departure_lon", _safe_double(F.col("departure_lon")))
+    df = df.withColumn("arrival_lat", _safe_double(F.col("arrival_lat")))
+    df = df.withColumn("arrival_lon", _safe_double(F.col("arrival_lon")))
 
     valid_dep = _valid_coord_expr(F.col("departure_lat"), F.col("departure_lon"))
     valid_arr = _valid_coord_expr(F.col("arrival_lat"), F.col("arrival_lon"))
-    df = df.filter(valid_dep & valid_arr)
+    valid_coords = valid_dep & valid_arr
+    dropped_invalid_coords = df.filter(~valid_coords).count()
+    if dropped_invalid_coords > 0:
+        LOGGER.warning("Quality: rows dropped due invalid coordinates: %s", dropped_invalid_coords)
+    df = df.filter(valid_coords)
 
     dist_raw = _haversine_km_expr(
         F.col("departure_lat"),
@@ -1536,7 +1692,7 @@ def _filter_and_distance(df: DataFrame) -> DataFrame:
     )
 
     if "distance_km" in df.columns:
-        df = df.withColumn("distance_km", F.col("distance_km").cast(DoubleType()))
+        df = df.withColumn("distance_km", _safe_double(F.col("distance_km")))
         df = df.withColumn("distance_km_raw", dist_raw)
         df = df.withColumn(
             "distance_km",
@@ -1739,6 +1895,19 @@ def _build_trajet_fact(df: DataFrame, stations: DataFrame, vehicles: DataFrame) 
     win = Window.partitionBy(F.lit(1)).orderBy("vehicule_id", "pair_a", "pair_b")
     df = df.withColumn("trajet_id", F.row_number().over(win))
 
+    if "agency_timezone" not in df.columns:
+        df = df.withColumn("agency_timezone", F.lit(None).cast(StringType()))
+    else:
+        df = df.withColumn("agency_timezone", F.col("agency_timezone").cast(StringType()))
+    if "departure_time" not in df.columns:
+        df = df.withColumn("departure_time", F.lit(None).cast(StringType()))
+    else:
+        df = df.withColumn("departure_time", F.col("departure_time").cast(StringType()))
+    if "arrival_time" not in df.columns:
+        df = df.withColumn("arrival_time", F.lit(None).cast(StringType()))
+    else:
+        df = df.withColumn("arrival_time", F.col("arrival_time").cast(StringType()))
+
     return df.select(
         "trajet_id",
         "vehicule_id",
@@ -1747,6 +1916,9 @@ def _build_trajet_fact(df: DataFrame, stations: DataFrame, vehicles: DataFrame) 
         "arrival_station_id",
         "distance_km",
         "co2_kg",
+        "departure_time",
+        "arrival_time",
+        "agency_timezone",
     )
 
 
@@ -1756,7 +1928,7 @@ def _get_conn():
         port=os.environ.get("PGPORT", "5432"),
         dbname=os.environ.get("PGDATABASE", "obrail"),
         user=os.environ.get("PGUSER", "postgres"),
-        password=os.environ.get("PGPASSWORD", "143123!"),
+        password=os.environ.get("PGPASSWORD", "143123"),
     )
 
 
@@ -1770,7 +1942,7 @@ def _jdbc_url() -> str:
 def _write_df_jdbc(df: DataFrame, table_name: str) -> None:
     props = {
         "user": os.environ.get("PGUSER", "postgres"),
-        "password": os.environ.get("PGPASSWORD", "143123!"),
+        "password": os.environ.get("PGPASSWORD", "143123"),
         "driver": "org.postgresql.Driver",
     }
     partitions_raw = os.environ.get(JDBC_WRITE_PARTITIONS_ENV)
@@ -1787,6 +1959,15 @@ def _write_df_jdbc(df: DataFrame, table_name: str) -> None:
         if batch and batch > 0:
             writer = writer.option("batchsize", str(batch))
         writer.jdbc(_jdbc_url(), table_name, properties=props)
+
+    def _java_error_summary(exc: Exception) -> str:
+        java_exc = getattr(exc, "java_exception", None)
+        if java_exc is None:
+            return str(exc)
+        try:
+            return str(java_exc.toString())
+        except Exception:
+            return str(exc)
 
     try:
         _do_write(df, batch_size)
@@ -1809,12 +1990,16 @@ def _write_df_jdbc(df: DataFrame, table_name: str) -> None:
         LOGGER.warning(
             "JDBC write failed for %s (%s). Retry with partitions=%s batchsize=%s.",
             table_name,
-            exc,
+            _java_error_summary(exc),
             fallback_partitions,
             fallback_batch,
         )
         frame = df.repartition(fallback_partitions) if fallback_partitions > 0 else df
-        _do_write(frame, fallback_batch)
+        try:
+            _do_write(frame, fallback_batch)
+        except Exception as exc2:
+            LOGGER.error("JDBC retry failed for %s (%s).", table_name, _java_error_summary(exc2))
+            raise
 
 
 def _ensure_schema(schema_path: str, schema_name: str, truncate: bool = True) -> None:
@@ -2001,6 +2186,13 @@ def run_stream_etl(argv: list[str] | None = None) -> None:
                             inputs.append(item)
                 else:
                     LOGGER.info("XLSX inputs: none (GTFS_XLSX_URL empty).")
+
+            flights_enabled = _truthy_env(FLIGHTS_ENABLE_ENV, False)
+            if flights_enabled:
+                flights_url = os.environ.get(FLIGHTS_URL_ENV) or DEFAULT_FLIGHTS_URL
+                if flights_url:
+                    LOGGER.info("Flights input active: %s", flights_url)
+                    inputs.append(flights_url)
             # Ajout des GTFS dynamiques par country_code depuis un catalogue CSV
             catalog_url = (
                 os.environ.get("GTFS_CATALOG_URL")
@@ -2176,27 +2368,26 @@ def run_stream_etl(argv: list[str] | None = None) -> None:
             LOGGER.warning("No trips left after filtering.")
             return
 
-        pre_counts: dict[tuple[str, str | None], int] = {}
-        if "_source" in trips_df.columns:
-            for row in trips_df.groupBy("_source", "_country").count().collect():
-                key = (row["_source"], row["_country"])
-                pre_counts[key] = int(row["count"])
+        log_feed_stats = _truthy_env(ETL_LOG_FEED_STATS_ENV, False)
+        if log_feed_stats and "_source" in trips_df.columns:
+            counts: dict[tuple[str, str | None], int] = {}
+            try:
+                for row in trips_df.groupBy("_source", "_country").count().toLocalIterator():
+                    key = (row["_source"], row["_country"])
+                    counts[key] = int(row["count"])
+            except Exception as exc:  # noqa: BLE001
+                LOGGER.warning("Feed stats skipped (memory/compute issue): %s", exc)
+                counts = {}
 
-        if pre_counts and "_source" in trips_df.columns:
-            post_counts: dict[tuple[str, str | None], int] = {}
-            for row in trips_df.groupBy("_source", "_country").count().collect():
-                key = (row["_source"], row["_country"])
-                post_counts[key] = int(row["count"])
-            for (source, country), pre_count in pre_counts.items():
-                post_count = post_counts.get((source, country), 0)
+            for (source, country), count in counts.items():
                 LOGGER.info(
                     "Feed stats: %s country=%s extracted=%s after_filter=%s",
                     source,
                     country or "-",
-                    pre_count,
-                    post_count,
+                    count,
+                    count,
                 )
-                if source in gtfs_entries and post_count == 0:
+                if source in gtfs_entries and count == 0:
                     gtfs_zero.add(source)
 
         snapshot_write = _truthy_env(ETL_SNAPSHOT_WRITE_ENV, False)
@@ -2232,11 +2423,11 @@ def run_stream_etl(argv: list[str] | None = None) -> None:
             _save_ignorelist(ignorelist_path, updated)
             LOGGER.info("GTFS ignorelist mis a jour (%s URLs).", len(updated))
     finally:
-        shutil.rmtree(tmp_root, ignore_errors=True)
         try:
             spark.stop()
         except Exception:
             pass
+        shutil.rmtree(tmp_root, ignore_errors=True)
 
 
 if __name__ == "__main__":
