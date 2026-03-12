@@ -4,10 +4,10 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>ObRail Europe Ã¢â‚¬â€œ Analytics</title>
+    <title>ObRail Europe ETL Analytics</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="stylesheet"
-        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" />
+        href="https://fonts.googleapis.com/css2-family=Inter:wght@300;400;500;600;700&display=swap" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <style>
@@ -52,7 +52,6 @@
             -webkit-font-smoothing: antialiased
         }
 
-        /* Ã¢â€â‚¬Ã¢â€â‚¬ Scrollbar Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */
         ::-webkit-scrollbar {
             width: 6px;
             height: 6px
@@ -67,7 +66,6 @@
             border-radius: 3px
         }
 
-        /* Ã¢â€â‚¬Ã¢â€â‚¬ Header Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */
         header {
             height: var(--header);
             background: var(--surface);
@@ -126,14 +124,12 @@
             padding: 3px 10px;
         }
 
-        /* Ã¢â€â‚¬Ã¢â€â‚¬ Layout Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */
         .shell {
             display: flex;
             margin-top: var(--header);
             min-height: calc(100vh - var(--header))
         }
 
-        /* Ã¢â€â‚¬Ã¢â€â‚¬ Sidebar Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */
         aside {
             width: var(--sidebar);
             background: var(--surface);
@@ -196,7 +192,6 @@
             margin: 8px 0
         }
 
-        /* Ã¢â€â‚¬Ã¢â€â‚¬ Main Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */
         main {
             margin-left: var(--sidebar);
             flex: 1;
@@ -205,7 +200,6 @@
             max-width: 100%
         }
 
-        /* Ã¢â€â‚¬Ã¢â€â‚¬ Page header Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */
         .pg-header {
             margin-bottom: 20px
         }
@@ -232,7 +226,6 @@
             color: var(--muted2)
         }
 
-        /* Ã¢â€â‚¬Ã¢â€â‚¬ KPI cards Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */
         .kpi-row {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
@@ -282,7 +275,6 @@
             color: var(--amber)
         }
 
-        /* Ã¢â€â‚¬Ã¢â€â‚¬ Card / section Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */
         .card {
             background: var(--surface);
             border: 1px solid var(--border);
@@ -315,7 +307,6 @@
             padding: 0
         }
 
-        /* Ã¢â€â‚¬Ã¢â€â‚¬ Controls Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */
         .controls {
             display: flex;
             gap: 10px;
@@ -399,7 +390,6 @@
             color: var(--text)
         }
 
-        /* Ã¢â€â‚¬Ã¢â€â‚¬ Selector bar Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */
         .selector-bar {
             background: var(--surface);
             border: 1px solid var(--border);
@@ -417,9 +407,20 @@
             margin-bottom: 0
         }
 
-        /* Ã¢â€â‚¬Ã¢â€â‚¬ Table Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */
         .tbl-wrap {
             overflow-x: auto
+        }
+
+        .trip-table-scroll {
+            max-height: 680px;
+            overflow-y: auto;
+        }
+
+        .trip-table-scroll table thead th {
+            position: sticky;
+            top: 0;
+            z-index: 2;
+            background: var(--surface2);
         }
 
         table {
@@ -460,7 +461,6 @@
             color: var(--text)
         }
 
-        /* Ã¢â€â‚¬Ã¢â€â‚¬ Badge / tag Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */
         .badge {
             display: inline-block;
             padding: 2px 7px;
@@ -496,7 +496,6 @@
             color: #b59cf7
         }
 
-        /* Ã¢â€â‚¬Ã¢â€â‚¬ Bar chart Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */
         .bars {
             display: flex;
             flex-direction: column;
@@ -538,7 +537,6 @@
             text-align: right
         }
 
-        /* Ã¢â€â‚¬Ã¢â€â‚¬ Metric pair Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */
         .metric-pair {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -579,7 +577,6 @@
             margin-top: 5px
         }
 
-        /* Ã¢â€â‚¬Ã¢â€â‚¬ Saving box Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */
         .saving-box {
             background: #071e12;
             border: 1px solid #1a4d30;
@@ -595,13 +592,11 @@
             font-size: 16px
         }
 
-        /* Ã¢â€â‚¬Ã¢â€â‚¬ Map Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */
         #map {
             height: 400px;
             border-radius: 0
         }
 
-        /* Ã¢â€â‚¬Ã¢â€â‚¬ States Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */
         .state {
             text-align: center;
             padding: 36px 16px;
@@ -633,7 +628,6 @@
             }
         }
 
-        /* Ã¢â€â‚¬Ã¢â€â‚¬ Source note Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */
         .source-note {
             font-size: 10.5px;
             color: var(--muted);
@@ -641,7 +635,6 @@
             line-height: 1.6
         }
 
-        /* Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */
     </style>
 </head>
 
@@ -845,7 +838,7 @@
                                     <option value="">All</option>
                                     <option value="tgv">TGV</option>
                                     <option value="rer">RER</option>
-                                    <option value="intercite">IntercitÃƒÂ©</option>
+                                    <option value="intercite">Intercite</option>
                                 </select>
                             </div>
                             <div class="ctrl">
@@ -866,7 +859,7 @@
                     <div class="card-head">
                         <div class="card-title" id="tripCount">Results</div>
                     </div>
-                    <div class="card-body-flush tbl-wrap" id="tripTable">
+                    <div class="card-body-flush tbl-wrap trip-table-scroll" id="tripTable">
                         <div class="state">Run a search to display trips.</div>
                     </div>
                 </div>
@@ -1056,10 +1049,10 @@
             return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
         }
 
-        function fmt(n) { return n == null ? 'Ã¢â‚¬â€œ' : Number(n).toLocaleString('en'); }
+        function fmt(n) { return n == null ? '-' : Number(n).toLocaleString('en'); }
 
         function fmtKg(n, digits = 2) {
-            return n == null ? 'ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“' : Number(n).toLocaleString('en', {
+            return n == null ? '-' : Number(n).toLocaleString('en', {
                 minimumFractionDigits: digits,
                 maximumFractionDigits: digits
             });
@@ -1152,9 +1145,9 @@
                 const [stats, cov] = await Promise.all([api('/stats/coverage' + tp), api('/coverage' + tp)]);
                 _coverageData = cov;
 
-                const np = stats.night_ratio ? (stats.night_ratio * 100).toFixed(1) : 'Ã¢â‚¬â€œ';
+                const np = stats.night_ratio ? (stats.night_ratio * 100).toFixed(1) : '-';
                 const cp = stats.total_trips
-                    ? ((stats.cross_border_trips / stats.total_trips) * 100).toFixed(1) : 'Ã¢â‚¬â€œ';
+                    ? ((stats.cross_border_trips / stats.total_trips) * 100).toFixed(1) : '-';
 
                 $('overviewKpis').innerHTML = `
       <div class="kpi-card">
@@ -1207,9 +1200,9 @@
         //  ENVIRONMENTAL KPIs
         // ================================================================
         const ENV_TITLES = {
-            co2_route: 'Average CO2 per route Ã¢â‚¬â€ train vs plane',
+            co2_route: 'Average CO2 per route - train vs plane',
             co2_km: 'CO2 intensity per km by operator',
-            day_night: 'Day vs Night Ã¢â‚¬â€ environmental comparison',
+            day_night: 'Day vs Night - environmental comparison',
         };
 
         async function loadEnvKpi() {
@@ -1238,7 +1231,7 @@
             const s = (specificite || '').toLowerCase();
             if (s.includes('tgv') || s.includes('inoui')) return 'TGV';
             if (s.includes('rer')) return 'RER';
-            if (s.includes('intercite') || s.includes('intercitÃƒÂ©') || s.includes('intercity')) return 'IntercitÃƒÂ©';
+            if (s.includes('intercite') || s.includes('intercity')) return 'Intercite';
             if (s.includes('ter')) return 'TER';
             return 'Train';
         }
@@ -1282,7 +1275,7 @@
       <th>Train CO2 (kg)</th><th>Plane CO2 (kg)</th><th>Saving</th>
     </tr></thead><tbody>
     ${rows.map(r => `<tr>
-      <td style="font-weight:500;color:var(--text)">${r.t.departure_station || '?'} &rarr; ${r.t.arrival_station || '?'}</td>
+      <td style="font-weight:500;color:var(--text)">${r.t.departure_station || '-'} &rarr; ${r.t.arrival_station || '-'}</td>
       <td>${r.d}</td>
       <td style="color:var(--green);font-weight:600">${fmtKg(r.tKg)}</td>
       <td style="color:var(--red);font-weight:600">${fmtKg(r.pKg)}</td>
@@ -1341,13 +1334,13 @@
             $('envKpiBody').innerHTML = `
     <div class="metric-pair">
       <div class="metric-box">
-        <div class="metric-lbl">Day trains Ã¢â‚¬â€ avg CO2 / trip</div>
+        <div class="metric-lbl">Day trains - avg CO2 / trip</div>
         <div class="metric-val" style="color:var(--accent)">${fmtKg(dA.tG)} kg</div>
         <div class="metric-sub">Avg distance ${fmt(dA.d)} km &middot; ${day.length} trips</div>
         <div class="metric-sub" style="color:var(--red);margin-top:8px">Plane equiv: ${fmtKg(dA.pG)} kg</div>
       </div>
       <div class="metric-box">
-        <div class="metric-lbl">Night trains Ã¢â‚¬â€ avg CO2 / trip</div>
+        <div class="metric-lbl">Night trains - avg CO2 / trip</div>
         <div class="metric-val" style="color:var(--purple)">${fmtKg(nA.tG)} kg</div>
         <div class="metric-sub">Avg distance ${fmt(nA.d)} km &middot; ${night.length} trips</div>
         <div class="metric-sub" style="color:var(--red);margin-top:8px">Plane equiv: ${fmtKg(nA.pG)} kg</div>
@@ -1363,7 +1356,7 @@
         //  DEMAND & BUSINESS KPIs
         // ================================================================
         const DEMAND_TITLES = {
-            operator_share: 'Operator market share Ã¢â‚¬â€ trip volume',
+            operator_share: 'Operator market share - trip volume',
             cross_border: 'Cross-border vs domestic traffic',
             night_share: 'Night train share by country',
         };
@@ -1392,7 +1385,7 @@
 
         function renderOpShare(trips, ops) {
             const cnt = {};
-            trips.forEach(t => { const o = t.operator || '?'; cnt[o] = (cnt[o] || 0) + 1; });
+            trips.forEach(t => { const o = t.operator || '-'; cnt[o] = (cnt[o] || 0) + 1; });
             const total = trips.length || 1;
             const rows = Object.entries(cnt).sort((a, b) => b[1] - a[1]).slice(0, 12);
             const max = rows[0]?.[1] || 1;
@@ -1440,7 +1433,7 @@
 
         function renderNightShare(trips, cov) {
             const byC = {};
-            trips.forEach(t => { const c = t.country || '?'; if (!byC[c]) byC[c] = { t: 0, n: 0 }; byC[c].t++; if (t.is_night) byC[c].n++; });
+            trips.forEach(t => { const c = t.country || '-'; if (!byC[c]) byC[c] = { t: 0, n: 0 }; byC[c].t++; if (t.is_night) byC[c].n++; });
             const covMap = Object.fromEntries(cov.map(c => [c.country_code, c.name_en || c.name_fr || c.country_code]));
             const rows = Object.entries(byC)
                 .map(([c, v]) => ({ c, name: covMap[c] || c, pct: (v.n / v.t * 100).toFixed(1) }))
@@ -1570,8 +1563,8 @@
       <thead><tr><th>ID</th><th>Name</th><th>Country</th><th>Type</th></tr></thead>
       <tbody>${data.map(o => `<tr>
         <td style="font-family:monospace;font-size:11px;color:var(--accent)">${o.operator_id}</td>
-        <td style="font-weight:500;color:var(--text)">${o.operator_name || 'Ã¢â‚¬â€œ'}</td>
-        <td>${o.operator_country || 'Ã¢â‚¬â€œ'}</td>
+        <td style="font-weight:500;color:var(--text)">${o.operator_name || '-'}</td>
+        <td>${o.operator_country || '-'}</td>
         <td>${o.is_night_operator ? badge('Night', 'purple') : badge('Day', 'blue')}</td>
       </tr>`).join('')}
       </tbody></table>`;
@@ -1596,11 +1589,11 @@
       <thead><tr><th>ID</th><th>Name</th><th>Lat</th><th>Lon</th><th>Country</th><th>Stop ID</th></tr></thead>
       <tbody>${data.map(s => `<tr>
         <td style="font-family:monospace;font-size:11px;color:var(--accent)">${s.station_key}</td>
-        <td style="font-weight:500;color:var(--text)">${s.station_name || 'ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“'}</td>
-        <td>${s.station_lat ?? 'ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“'}</td>
-        <td>${s.station_lon ?? 'ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“'}</td>
-        <td>${s.country_name || s.country_code || 'ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“'}</td>
-        <td>${s.stop_id || 'ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“'}</td>
+        <td style="font-weight:500;color:var(--text)">${s.station_name || '-'}</td>
+        <td>${s.station_lat ?? '-'}</td>
+        <td>${s.station_lon ?? '-'}</td>
+        <td>${s.country_name || s.country_code || '-'}</td>
+        <td>${s.stop_id || '-'}</td>
       </tr>`).join('')}
       </tbody></table>`;
             } catch (e) { $('stationsTable').innerHTML = `<div class="state">Failed: ${e.message}</div>`; }
@@ -1628,7 +1621,7 @@
                 data.forEach(r => {
                     const o = document.createElement('option');
                     o.value = r.country_code;
-                    o.textContent = `${r.country_code} Ã¢â‚¬â€œ ${r.name_en || r.name_fr || ''}`;
+                    o.textContent = `${r.country_code} - ${r.name_en || r.name_fr || ''}`;
                     sel.appendChild(o);
                     if (stationSel) stationSel.appendChild(o.cloneNode(true));
                 });
@@ -1711,12 +1704,12 @@
                     if (co2) {
                         const sv = tKg != null ? pKg - tKg : null;
                         const pc = sv != null ? Math.round(sv / pKg * 100) : null;
-                        const sB = sv != null ? (sv > 0 ? badge('-' + fmtKg(sv) + ' kg (' + pc + '%)', 'green') : badge('+' + fmtKg(Math.abs(sv)) + ' kg', 'red')) : 'Ã¢â‚¬â€œ';
+                        const sB = sv != null ? (sv > 0 ? badge('-' + fmtKg(sv) + ' kg (' + pc + '%)', 'green') : badge('+' + fmtKg(Math.abs(sv)) + ' kg', 'red')) : '-';
                         return `<tr><td>${row.fact_trip_key}</td><td>${row.country || ''}</td><td>${row.operator || ''}</td>
           <td>${transportLabelText}</td><td>${typeBadge}</td>${scheduleTd}<td>${row.departure_station || ''}</td><td>${row.arrival_station || ''}</td>
-          <td>${d ? Math.round(d) : 'Ã¢â‚¬â€œ'}</td>
-          <td style="color:var(--green);font-weight:600">${tKg != null ? fmtKg(tKg) : 'Ã¢â‚¬â€œ'}</td>
-          <td style="color:var(--red);font-weight:600">${pKg != null ? fmtKg(pKg) : 'Ã¢â‚¬â€œ'}</td>
+          <td>${d ? Math.round(d) : '-'}</td>
+          <td style="color:var(--green);font-weight:600">${tKg != null ? fmtKg(tKg) : '-'}</td>
+          <td style="color:var(--red);font-weight:600">${pKg != null ? fmtKg(pKg) : '-'}</td>
           <td>${sB}</td></tr>`;
                     } else {
                         return `<tr><td>${row.fact_trip_key}</td><td>${row.country || ''}</td><td>${row.operator || ''}</td>
@@ -1736,11 +1729,6 @@
         // ================================================================
         //  INIT
         // ================================================================
-        const expServiceDate = $('expServiceDate');
-        if (expServiceDate && !expServiceDate.value) {
-            const today = new Date().toISOString().slice(0, 10);
-            expServiceDate.value = today;
-        }
         updateTripScheduleToggle();
         loadCountries();
         loadOverview();

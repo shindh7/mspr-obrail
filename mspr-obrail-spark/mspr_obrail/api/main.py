@@ -124,6 +124,18 @@ def _country_name(code: Optional[str]) -> Optional[str]:
     return _country_mapping().get(code.upper(), code.upper())
 
 
+def _operator_id_expr(alias: str = "t") -> str:
+    op_id = f"{alias}.operator_id"
+    op_name = f"{alias}.operator_name"
+    return f"COALESCE(NULLIF({op_id}, ''), NULLIF({op_name}, ''), 'Unknown')"
+
+
+def _operator_name_expr(alias: str = "t") -> str:
+    op_id = f"{alias}.operator_id"
+    op_name = f"{alias}.operator_name"
+    return f"COALESCE(NULLIF({op_name}, ''), NULLIF({op_id}, ''), 'Unknown')"
+
+
 def _column_exists(db, table_name: str, column_name: str) -> bool:
     sql = """
         SELECT 1
@@ -242,7 +254,11 @@ def _get_conn():
         port=os.environ.get("PGPORT", "5432"),
         dbname=os.environ.get("PGDATABASE", "obrail"),
         user=os.environ.get("PGUSER", "postgres"),
-        password=os.environ.get("PGPASSWORD", ""), #mot de passe de la bdd
+        password=(
+            os.environ.get("PGPASSWORD")
+            or os.environ.get("POSTGRES_PASSWORD")
+            or "143123!"
+        ),
     )
 
 
@@ -397,21 +413,31 @@ def list_operators(
 ):
     filters: list[str] = []
     params: list = []
+    op_id_expr = _operator_id_expr("t")
+    op_name_expr = _operator_name_expr("t")
     if type_transport:
-        filters.append("type_transport = %s")
+        filters.append("v.type_transport = %s")
         params.append(type_transport)
 
     where = f"WHERE {' AND '.join(filters)}" if filters else ""
     sql = f"""
         SELECT
-            COALESCE(specificite, type_transport) AS operator_id,
-            COALESCE(specificite, type_transport) AS operator_name,
-            NULL::text AS operator_country,
-            (MAX(CASE WHEN train_type = 105 THEN 1 ELSE 0 END) = 1) AS is_night_operator
-        FROM {SCHEMA}.vehicule
-        {where}
-        GROUP BY COALESCE(specificite, type_transport)
-        ORDER BY operator_name;
+            op.operator_id,
+            op.operator_name,
+            op.operator_country,
+            op.is_night_operator
+        FROM (
+            SELECT
+                {op_id_expr} AS operator_id,
+                {op_name_expr} AS operator_name,
+                NULL::text AS operator_country,
+                (MAX(CASE WHEN t.is_night THEN 1 ELSE 0 END) = 1) AS is_night_operator
+            FROM {SCHEMA}.trajet t
+            LEFT JOIN {SCHEMA}.vehicule v ON v.vehicule_id = t.vehicule_id
+            {where}
+            GROUP BY {op_id_expr}, {op_name_expr}
+        ) op
+        ORDER BY op.operator_name;
     """
     with db.cursor() as cur:
         cur.execute(sql, params)
@@ -443,7 +469,8 @@ def list_trips_legacy(
 ):
     filters: list[str] = []
     params: list = []
-
+    op_id_expr = _operator_id_expr("t")
+    op_name_expr = _operator_name_expr("t")
     if type_transport:
         filters.append("v.type_transport = %s")
         params.append(type_transport)
@@ -454,8 +481,13 @@ def list_trips_legacy(
         filters.append("(ds.pays = %s OR a.pays = %s)")
         params.extend([country_code.upper(), country_code.upper()])
     if operator_id:
-        filters.append("COALESCE(v.specificite, v.type_transport) = %s")
-        params.append(operator_id)
+        operator_search = operator_id.strip().lstrip("'’").strip()
+        if operator_search:
+            op_like = f"%{operator_search}%"
+            filters.append(
+                f"({op_id_expr} ILIKE %s OR {op_name_expr} ILIKE %s OR COALESCE(v.specificite, '') ILIKE %s)"
+            )
+            params.extend([op_like, op_like, op_like])
     if train_kind:
         kind = train_kind.lower().strip()
         patterns: list[str] | None = None
@@ -482,7 +514,7 @@ def list_trips_legacy(
         SELECT
             t.trajet_id AS fact_trip_key,
             COALESCE(ds.pays, a.pays) AS country,
-            COALESCE(v.specificite, v.type_transport) AS operator,
+            {op_name_expr} AS operator,
             v.type_transport AS type_transport,
             v.specificite AS specificite,
             t.trajet_id::text AS trip_id,
@@ -1059,7 +1091,6 @@ def quality_stats(
         "trips_missing_country": row[3] or 0,
         "trips_missing_coords": row[4] or 0,
         "stations_used": row[5] or 0,
-
         "stations_missing_country": row[6] or 0,
         "stations_missing_coords": row[7] or 0,
         "vehicles_used": row[8] or 0,
