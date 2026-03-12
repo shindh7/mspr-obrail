@@ -187,6 +187,7 @@ DEFAULT_FLIGHTS_EU_COUNTRY_CODES = (
 DEFAULT_FLIGHTS_URL = (
     "https://www.eurocontrol.int/performance/data/download/OPDI/v002/flight_list/flight_list_202512.parquet"
 )
+DEFAULT_PG_JDBC_PACKAGE = "org.postgresql:postgresql:42.7.5"
 DEFAULT_SCHEMA = "obrail_transport"
 COORD_ROUND_DECIMALS = 4
 EARTH_RADIUS_KM = 6371.0
@@ -834,6 +835,9 @@ def _spark_session() -> SparkSession:
                 jars = _append_csv(jars, discovered)
                 has_pg_driver = True
     pg_pkg = os.environ.get("PG_JDBC_PACKAGE")
+    if not has_pg_driver and not pg_pkg:
+        pg_pkg = DEFAULT_PG_JDBC_PACKAGE
+        LOGGER.info("PG JDBC package auto-configure: %s", pg_pkg)
     if not has_pg_driver and pg_pkg:
         packages = _append_csv(packages, pg_pkg)
         has_pg_driver = True
@@ -947,6 +951,8 @@ def _map_gtfs_sheet_name(name: str) -> str | None:
         return "stop_times.txt"
     if key in ("stops", "stop", "gtfs_stops"):
         return "stops.txt"
+    if key in ("agency", "agencies", "gtfs_agency", "gtfs_agencies"):
+        return "agency.txt"
     return None
 
 
@@ -964,6 +970,7 @@ def _extract_gtfs_from_xlsx(xlsx_path: str, tmp_dir: str) -> str | None:
         return None
 
     needed = {"routes.txt", "trips.txt", "stop_times.txt", "stops.txt"}
+    optional = {"agency.txt"}
     extracted: dict[str, str] = {}
     extract_dir = tempfile.mkdtemp(prefix="gtfs_xlsx_", dir=tmp_dir)
     try:
@@ -979,6 +986,9 @@ def _extract_gtfs_from_xlsx(xlsx_path: str, tmp_dir: str) -> str | None:
             LOGGER.warning("XLSX missing GTFS sheets: %s", ", ".join(missing))
             shutil.rmtree(extract_dir, ignore_errors=True)
             return None
+        missing_optional = sorted(optional - set(extracted))
+        if missing_optional:
+            LOGGER.info("XLSX sans feuilles optionnelles: %s", ", ".join(missing_optional))
         return extract_dir
     except Exception as exc:
         LOGGER.warning("Failed to extract XLSX sheets: %s (%s)", xlsx_path, exc)
@@ -1150,35 +1160,58 @@ def _extract_trips_from_gtfs_dir(
         routes = routes.withColumn("emissions", F.lit(None).cast(DoubleType()))
 
     agency_tz: str | None = None
+    agency_name_default: str | None = None
     agency_path = os.path.join(gtfs_dir, "agency.txt")
     if os.path.exists(agency_path):
-        agency = _read_csv(spark, agency_path, ["agency_id", "agency_timezone"])
-        if "agency_timezone" in agency.columns:
-            agency = agency.withColumn("agency_timezone", F.trim(F.col("agency_timezone")))
-            if "agency_id" in agency.columns:
-                agency = agency.withColumn("agency_id", F.trim(F.col("agency_id")))
-                routes = routes.join(
-                    agency.select("agency_id", "agency_timezone"),
-                    "agency_id",
-                    "left",
-                )
-            else:
-                tz_rows = (
-                    agency.select("agency_timezone")
-                    .filter(F.col("agency_timezone").isNotNull())
-                    .limit(1)
-                    .collect()
-                )
-                agency_tz = tz_rows[0][0] if tz_rows else None
+        agency = _read_csv(spark, agency_path, ["agency_id", "agency_name", "agency_timezone"])
+        if "agency_id" not in agency.columns:
+            agency = agency.withColumn("agency_id", F.lit(None).cast(StringType()))
+        if "agency_name" not in agency.columns:
+            agency = agency.withColumn("agency_name", F.lit(None).cast(StringType()))
+        if "agency_timezone" not in agency.columns:
+            agency = agency.withColumn("agency_timezone", F.lit(None).cast(StringType()))
+        agency = agency.withColumn("agency_id", F.trim(F.col("agency_id")))
+        agency = agency.withColumn("agency_name", F.trim(F.col("agency_name")))
+        agency = agency.withColumn("agency_timezone", F.trim(F.col("agency_timezone")))
+        defaults = (
+            agency.select("agency_name", "agency_timezone")
+            .filter(
+                (F.col("agency_name").isNotNull() & (F.trim(F.col("agency_name")) != ""))
+                | (F.col("agency_timezone").isNotNull() & (F.trim(F.col("agency_timezone")) != ""))
+            )
+            .limit(1)
+            .collect()
+        )
+        if defaults:
+            agency_name_default = defaults[0][0]
+            agency_tz = defaults[0][1]
+        routes = routes.withColumn("agency_id", F.trim(F.col("agency_id")))
+        routes = routes.join(
+            agency.select("agency_id", "agency_name", "agency_timezone"),
+            "agency_id",
+            "left",
+        )
     if "agency_timezone" not in routes.columns:
         routes = routes.withColumn("agency_timezone", F.lit(agency_tz).cast(StringType()))
-    timezone_rows = (
-        routes.select("agency_timezone")
-        .filter(F.col("agency_timezone").isNotNull() & (F.trim(F.col("agency_timezone")) != ""))
-        .limit(1)
-        .collect()
-    )
-    if not timezone_rows:
+    elif agency_tz:
+        routes = routes.withColumn(
+            "agency_timezone",
+            F.when(
+                F.col("agency_timezone").isNull() | (F.trim(F.col("agency_timezone")) == ""),
+                F.lit(agency_tz),
+            ).otherwise(F.col("agency_timezone")),
+        )
+    if "agency_name" not in routes.columns:
+        routes = routes.withColumn("agency_name", F.lit(agency_name_default).cast(StringType()))
+    elif agency_name_default:
+        routes = routes.withColumn(
+            "agency_name",
+            F.when(
+                F.col("agency_name").isNull() | (F.trim(F.col("agency_name")) == ""),
+                F.lit(agency_name_default),
+            ).otherwise(F.col("agency_name")),
+        )
+    if not agency_tz:
         LOGGER.warning(
             "GTFS agency_timezone manquant: conversion CET impossible pour ce feed (%s).",
             gtfs_dir,
@@ -1255,6 +1288,16 @@ def _extract_trips_from_gtfs_dir(
     )
     routes = routes.withColumn("distance_km", F.col("distance").cast(DoubleType()))
     routes = routes.withColumn("co2_kg", F.col("emissions").cast(DoubleType()))
+    routes = routes.withColumn(
+        "operator_id",
+        F.when(F.col("agency_id").isNotNull() & (F.trim(F.col("agency_id")) != ""), F.col("agency_id"))
+        .otherwise(F.lit(None).cast(StringType())),
+    )
+    routes = routes.withColumn(
+        "operator_name",
+        F.when(F.col("agency_name").isNotNull() & (F.trim(F.col("agency_name")) != ""), F.col("agency_name"))
+        .otherwise(F.col("operator_id")),
+    )
     routes = routes.select(
         "route_id",
         "transport_type",
@@ -1264,6 +1307,8 @@ def _extract_trips_from_gtfs_dir(
         "distance_km",
         "co2_kg",
         "agency_timezone",
+        "operator_id",
+        "operator_name",
     )
 
     if "stop_sequence" not in stop_times.columns:
@@ -1392,6 +1437,8 @@ def _extract_trips_from_gtfs_dir(
         "distance_km",
         "co2_kg",
         "agency_timezone",
+        "operator_id",
+        "operator_name",
         "departure_stop_id",
         "arrival_stop_id",
         "departure_station",
@@ -1500,6 +1547,9 @@ def _extract_trips_from_flights_csv(
     df = df.withColumn("transport_type", F.lit("avion"))
     df = df.withColumn("specificite", F.col(airline) if airline else F.lit("Avion"))
     df = df.withColumn("train_type", F.lit(None).cast(IntegerType()))
+    operator_val = F.col(airline) if airline else F.lit(None)
+    df = df.withColumn("operator_id", F.trim(operator_val).cast(StringType()))
+    df = df.withColumn("operator_name", F.col("operator_id"))
 
     df = df.withColumn("departure_station", F.col(origin_name) if origin_name else F.lit("Unknown"))
     df = df.withColumn("departure_lat", F.col(origin_lat))
@@ -1533,6 +1583,8 @@ def _extract_trips_from_flights_csv(
         "specificite",
         "train_type",
         "agency_timezone",
+        "operator_id",
+        "operator_name",
         "departure_stop_id",
         "arrival_stop_id",
         "departure_station",
@@ -1598,6 +1650,9 @@ def _extract_trips_from_flights_parquet(
     df = df.withColumn("transport_type", F.lit("avion"))
     df = df.withColumn("specificite", F.col(operator_col) if operator_col else F.lit("Avion"))
     df = df.withColumn("train_type", F.lit(None).cast(IntegerType()))
+    operator_val = F.col(operator_col) if operator_col else F.lit(None)
+    df = df.withColumn("operator_id", F.trim(operator_val).cast(StringType()))
+    df = df.withColumn("operator_name", F.col("operator_id"))
 
     default_country = default_country or _default_country_code("flights")
     if default_country:
@@ -1647,6 +1702,8 @@ def _extract_trips_from_flights_parquet(
         "specificite",
         "train_type",
         "agency_timezone",
+        "operator_id",
+        "operator_name",
         "departure_stop_id",
         "arrival_stop_id",
         "departure_station",
@@ -1719,6 +1776,11 @@ def _filter_and_distance(df: DataFrame) -> DataFrame:
     return df.drop("distance_km_raw")
 
 
+def _clip_str(col, max_len: int):
+    value = col.cast(StringType())
+    return F.when(value.isNull(), F.lit(None).cast(StringType())).otherwise(F.substring(value, 1, max_len))
+
+
 def _build_station_dim(df: DataFrame) -> DataFrame:
     dep = df.select(
         F.col("departure_stop_id").alias("stop_id"),
@@ -1742,6 +1804,13 @@ def _build_station_dim(df: DataFrame) -> DataFrame:
     stations = stations.withColumn(
         "stop_id",
         F.when(F.trim(F.col("stop_id")) == "", F.lit(None)).otherwise(F.col("stop_id")),
+    )
+    stations = stations.withColumn("stop_id", _clip_str(F.col("stop_id"), 128))
+    stations = stations.withColumn("station_name", _clip_str(F.col("station_name"), 256))
+    stations = stations.withColumn("pays", _clip_str(F.col("pays"), 8))
+    stations = stations.withColumn(
+        "pays",
+        F.when(F.col("pays").isNotNull() & (F.trim(F.col("pays")) == ""), F.lit(None)).otherwise(F.col("pays")),
     )
     stations = stations.withColumn(
         "_has_stop_id",
@@ -1890,10 +1959,30 @@ def _build_trajet_fact(df: DataFrame, stations: DataFrame, vehicles: DataFrame) 
     df = df.withColumn("departure_station_id", F.col("pair_a"))
     df = df.withColumn("arrival_station_id", F.col("pair_b"))
 
-    df = df.dropDuplicates(["vehicule_id", "pair_a", "pair_b"])
+    dedup_cols = ["vehicule_id", "pair_a", "pair_b"]
+    if "operator_id" in df.columns:
+        dedup_cols.append("operator_id")
+    elif "operator_name" in df.columns:
+        dedup_cols.append("operator_name")
+    df = df.dropDuplicates(dedup_cols)
 
-    win = Window.partitionBy(F.lit(1)).orderBy("vehicule_id", "pair_a", "pair_b")
-    df = df.withColumn("trajet_id", F.row_number().over(win))
+    # Distributed deterministic ID generation to avoid global WindowExec single partition.
+    id_parts = [F.col("vehicule_id"), F.col("pair_a"), F.col("pair_b")]
+    if "operator_id" in df.columns:
+        id_parts.append(F.col("operator_id"))
+    elif "operator_name" in df.columns:
+        id_parts.append(F.col("operator_name"))
+    id_parts = [F.coalesce(part.cast(StringType()), F.lit("<null>")) for part in id_parts]
+    df = df.withColumn(
+        "trajet_id",
+        (
+            F.pmod(
+                F.xxhash64(*id_parts),
+                F.lit(9223372036854775807),
+            )
+            + F.lit(1)
+        ).cast("bigint"),
+    )
 
     if "agency_timezone" not in df.columns:
         df = df.withColumn("agency_timezone", F.lit(None).cast(StringType()))
@@ -1907,6 +1996,19 @@ def _build_trajet_fact(df: DataFrame, stations: DataFrame, vehicles: DataFrame) 
         df = df.withColumn("arrival_time", F.lit(None).cast(StringType()))
     else:
         df = df.withColumn("arrival_time", F.col("arrival_time").cast(StringType()))
+    if "operator_id" not in df.columns:
+        df = df.withColumn("operator_id", F.lit(None).cast(StringType()))
+    else:
+        df = df.withColumn("operator_id", F.col("operator_id").cast(StringType()))
+    if "operator_name" not in df.columns:
+        df = df.withColumn("operator_name", F.lit(None).cast(StringType()))
+    else:
+        df = df.withColumn("operator_name", F.col("operator_name").cast(StringType()))
+    df = df.withColumn("departure_time", _clip_str(F.col("departure_time"), 16))
+    df = df.withColumn("arrival_time", _clip_str(F.col("arrival_time"), 16))
+    df = df.withColumn("agency_timezone", _clip_str(F.col("agency_timezone"), 64))
+    df = df.withColumn("operator_id", _clip_str(F.col("operator_id"), 128))
+    df = df.withColumn("operator_name", _clip_str(F.col("operator_name"), 256))
 
     return df.select(
         "trajet_id",
@@ -1919,6 +2021,8 @@ def _build_trajet_fact(df: DataFrame, stations: DataFrame, vehicles: DataFrame) 
         "departure_time",
         "arrival_time",
         "agency_timezone",
+        "operator_id",
+        "operator_name",
     )
 
 
@@ -1928,7 +2032,7 @@ def _get_conn():
         port=os.environ.get("PGPORT", "5432"),
         dbname=os.environ.get("PGDATABASE", "obrail"),
         user=os.environ.get("PGUSER", "postgres"),
-        password=os.environ.get("PGPASSWORD", ""), #mot de passe de la bd
+        password=os.environ.get("PGPASSWORD", ""),
     )
 
 
@@ -1942,7 +2046,7 @@ def _jdbc_url() -> str:
 def _write_df_jdbc(df: DataFrame, table_name: str) -> None:
     props = {
         "user": os.environ.get("PGUSER", "postgres"),
-        "password": os.environ.get("PGPASSWORD", "mdpuser"), #mot de passe de l'utilisateur windows (quand on dévérouille l'ordi etc)
+        "password": os.environ.get("PGPASSWORD", "143123!"),
         "driver": "org.postgresql.Driver",
     }
     partitions_raw = os.environ.get(JDBC_WRITE_PARTITIONS_ENV)
@@ -1965,13 +2069,24 @@ def _write_df_jdbc(df: DataFrame, table_name: str) -> None:
         if java_exc is None:
             return str(exc)
         try:
-            return str(java_exc.toString())
+            text = str(java_exc.toString())
+            cause = java_exc.getCause()
+            if cause is not None:
+                text = f"{text} | cause={cause.toString()}"
+            return text
         except Exception:
             return str(exc)
 
     try:
         _do_write(df, batch_size)
     except Exception as exc:
+        first_error = _java_error_summary(exc)
+        if "ClassNotFoundException: org.postgresql.Driver" in first_error:
+            raise RuntimeError(
+                "PostgreSQL JDBC driver absent dans Spark. "
+                "Definis PG_JDBC_JAR vers un jar local ou PG_JDBC_PACKAGE="
+                f"{DEFAULT_PG_JDBC_PACKAGE}."
+            ) from exc
         retry = _truthy_env(JDBC_RETRY_ON_ERROR_ENV, True)
         if not retry:
             raise
@@ -1990,7 +2105,7 @@ def _write_df_jdbc(df: DataFrame, table_name: str) -> None:
         LOGGER.warning(
             "JDBC write failed for %s (%s). Retry with partitions=%s batchsize=%s.",
             table_name,
-            _java_error_summary(exc),
+            first_error,
             fallback_partitions,
             fallback_batch,
         )
@@ -2299,12 +2414,17 @@ def run_stream_etl(argv: list[str] | None = None) -> None:
                 gtfs_dir = _load_gtfs_dir(local_path, tmp_root)
                 if gtfs_dir:
                     gtfs_entries.add(entry)
-                    gtfs_df = _extract_trips_from_gtfs_dir(
-                        spark,
-                        gtfs_dir,
-                        default_country=country_code,
-                        force_night=source_is_xlsx,
-                    )
+                    try:
+                        gtfs_df = _extract_trips_from_gtfs_dir(
+                            spark,
+                            gtfs_dir,
+                            default_country=country_code,
+                            force_night=source_is_xlsx,
+                        )
+                    except Exception as exc:  # noqa: BLE001
+                        LOGGER.warning("GTFS extraction failed: %s (%s)", entry, exc)
+                        gtfs_zero.add(entry)
+                        continue
                     if gtfs_df is not None:
                         gtfs_df = gtfs_df.withColumn("_source", F.lit(entry))
                         gtfs_df = gtfs_df.withColumn("_country", F.lit(country_code))
@@ -2315,7 +2435,15 @@ def run_stream_etl(argv: list[str] | None = None) -> None:
                     continue
 
                 if local_path.lower().endswith(".csv"):
-                    flights_df = _extract_trips_from_flights_csv(spark, local_path, default_country=country_code)
+                    try:
+                        flights_df = _extract_trips_from_flights_csv(
+                            spark,
+                            local_path,
+                            default_country=country_code,
+                        )
+                    except Exception as exc:  # noqa: BLE001
+                        LOGGER.warning("Flights CSV extraction failed: %s (%s)", entry, exc)
+                        continue
                     if flights_df is not None:
                         flights_df = flights_df.withColumn("_source", F.lit(entry))
                         flights_df = flights_df.withColumn("_country", F.lit(country_code))
@@ -2325,12 +2453,16 @@ def run_stream_etl(argv: list[str] | None = None) -> None:
                     continue
 
                 if local_path.lower().endswith(".parquet"):
-                    flights_df = _extract_trips_from_flights_parquet(
-                        spark,
-                        local_path,
-                        tmp_root,
-                        default_country=country_code,
-                    )
+                    try:
+                        flights_df = _extract_trips_from_flights_parquet(
+                            spark,
+                            local_path,
+                            tmp_root,
+                            default_country=country_code,
+                        )
+                    except Exception as exc:  # noqa: BLE001
+                        LOGGER.warning("Flights parquet extraction failed: %s (%s)", entry, exc)
+                        continue
                     if flights_df is not None:
                         flights_df = flights_df.withColumn("_source", F.lit(entry))
                         flights_df = flights_df.withColumn("_country", F.lit(country_code))
@@ -2434,4 +2566,3 @@ if __name__ == "__main__":
     import sys
 
     run_stream_etl(sys.argv[1:])
-
